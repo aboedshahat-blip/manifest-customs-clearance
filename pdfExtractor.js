@@ -170,6 +170,8 @@ function cleanCargo(str) {
   return dedupeWords(s);
 }
 
+const BRAND_REGEX = /MERCEDES|PEUGEOT|TOYOTA|HYUNDAI|KIA|BMW|NISSAN|CHEVROLET|CHEVORLET|MITSUBISHI|HONDA|FORD|VOLKSWAGEN|SKODA|AUDI|RENAULT|MAZDA|GEELY|CHERY|JEEP|SUZUKI|LEXUS|PORSCHE|CATERPILLAR|HITACHI|KOMATSU|SCANIA|VOLVO|DAF|MAN|WAGON|SEDAN|ACTIVE|SPORTAGE|TUCSON|COROLLA|CERATO|ACCENT|ELANTRA|CAMRY|YARIS|PRADO|LANDCRUISER|HILUX|FORTUNER|LANCER|ECLIPSE|PAJERO|KICKS|SUNNY|PATROL|DUSTER|LOGAN|TIGUAN|PASSAT|GOLF|OCTAVIA|KODIAQ|MEGANE|CAPTUR|TIGGO|ARRIZO|COOLRAY|EMGRAND/i;
+
 function cleanChassis(str) {
   if (!str) return '';
   return str
@@ -184,7 +186,9 @@ function cleanChassis(str) {
 
 function isLikelyVin(str) {
   if (!str) return false;
+  if (BRAND_REGEX.test(str)) return false;
   const s = cleanChassis(str);
+  if (BRAND_REGEX.test(s)) return false;
   if (!/^[A-Z0-9]+$/.test(s)) return false;
   if (/^\d{9,}$/.test(s)) return false;
   if (s.length >= 14 && s.length <= 20 && /[A-Z]/.test(s) && /\d/.test(s)) {
@@ -471,7 +475,10 @@ async function parseOslcoDelayed5Card(doc) {
       // Sub-table
       const tableRows = cardItems.filter(it => it.y < curLabel.y - 45);
       
-      let vinItems = tableRows.filter(it => isLikelyVin(it.str));
+      let vinItems = tableRows.filter(it => it.x >= 140 && it.x <= 280 && isLikelyVin(it.str));
+      if (vinItems.length === 0) {
+        vinItems = tableRows.filter(it => isLikelyVin(it.str));
+      }
       if (vinItems.length === 0) {
         // Equipment with short numeric chassis (e.g. 00423, 03070)
         const eqItems = tableRows.filter(it => it.x >= 140 && it.x <= 280 && /^\d{4,8}$/.test(it.str));
@@ -599,12 +606,15 @@ async function parseOslcoStandardCard(doc) {
       if (!consigneeName && shipperName) consigneeName = shipperName;
       if (!shipperName && consigneeName) shipperName = consigneeName;
 
-      // Chassis
+      // Chassis (Marks No column priority: x: 140 - 270)
       const tableAreaItems = cardItems.filter(it => it.y < curLabel.y - 25);
-      const vinCandidates = tableAreaItems.filter(it => isLikelyVin(it.str));
+      const columnVins = tableAreaItems.filter(it => it.x >= 140 && it.x <= 270 && isLikelyVin(it.str));
       let chassis = '';
-      if (vinCandidates.length > 0) {
-        chassis = cleanChassis(vinCandidates[0].str);
+      if (columnVins.length > 0) {
+        chassis = cleanChassis(columnVins[0].str);
+      } else {
+        const anyVin = tableAreaItems.filter(it => isLikelyVin(it.str));
+        if (anyVin.length > 0) chassis = cleanChassis(anyVin[0].str);
       }
 
       // Cargo Type (Table priority)
