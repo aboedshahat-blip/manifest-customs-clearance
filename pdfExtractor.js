@@ -562,8 +562,20 @@ async function extractRecordsFromPdfBuffer(buffer) {
   const pdfjsLib = await import('pdfjs-dist/legacy/build/pdf.mjs');
   const { getDocument, GlobalWorkerOptions } = pdfjsLib;
 
-  // Disable external worker — required for Vercel serverless & Node.js environments
-  GlobalWorkerOptions.workerSrc = '';
+  // Set workerSrc using pathToFileURL for Node.js / Vercel Serverless
+  try {
+    const { pathToFileURL } = require('url');
+    const path = require('path');
+    let workerPath;
+    try {
+      workerPath = require.resolve('pdfjs-dist/legacy/build/pdf.worker.mjs');
+    } catch (e) {
+      workerPath = path.join(process.cwd(), 'node_modules/pdfjs-dist/legacy/build/pdf.worker.mjs');
+    }
+    GlobalWorkerOptions.workerSrc = pathToFileURL(workerPath).href;
+  } catch (err) {
+    console.warn('Could not set workerSrc via URL:', err.message);
+  }
 
   const data = new Uint8Array(buffer);
   const doc = await getDocument({
