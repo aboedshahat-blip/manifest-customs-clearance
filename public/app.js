@@ -635,6 +635,10 @@ function renderTable() {
         ${row.chassis}
       </td>
       
+      <td class="py-3 px-3 text-center font-mono text-xs text-slate-700 border-l border-slate-200" contenteditable="true" data-field="weight" data-id="${row.id}">
+        ${row.weight || '2000'}
+      </td>
+      
       <td class="py-3 px-2 text-center">
         <button class="btnDeleteRow text-slate-300 hover:text-rose-500 p-1.5 rounded transition-all" data-id="${row.id}" title="حذف هذا السطر">
           <i class="fa-solid fa-trash-can text-sm"></i>
@@ -799,14 +803,15 @@ btnExportCsv.addEventListener('click', () => {
     return;
   }
 
-  const headers = ['مسلسل', 'رقم البوليصة', 'اسم الشاحن', 'رقم الـ acid', 'نوع البضاعة', 'رقم الشاسيه'];
+  const headers = ['مسلسل', 'رقم البوليصة', 'اسم المستلم', 'رقم الـ acid', 'نوع البضاعة', 'رقم الشاسيه', 'الوزن'];
   const rows = currentRecords.map((r, idx) => [
     `"${String(idx + 1).padStart(3, '0')}"`,
     `"${(r.billNo || '').replace(/"/g, '""')}"`,
-    `"${(r.consigneeName || r.shipperName || '').replace(/"/g, '""')}"`,
+    `"${(r.consigneeName || '').replace(/"/g, '""')}"`,
     `"${(r.acid || '0').replace(/"/g, '""')}"`,
     `"${(r.cargoType || '').replace(/"/g, '""')}"`,
-    `"${(r.chassis || '').replace(/"/g, '""')}"`
+    `"${(r.chassis || '').replace(/"/g, '""')}"`,
+    `"${(r.weight || '2000').replace(/"/g, '""')}"`
   ]);
 
   const csvContent = '\uFEFF' + [headers.join(','), ...rows.map(e => e.join(','))].join('\r\n');
@@ -830,14 +835,15 @@ btnCopyClipboard.addEventListener('click', () => {
     return;
   }
 
-  const headers = ['مسلسل', 'رقم البوليصة', 'اسم الشاحن', 'رقم الـ acid', 'نوع البضاعة', 'رقم الشاسيه'];
+  const headers = ['مسلسل', 'رقم البوليصة', 'اسم المستلم', 'رقم الـ acid', 'نوع البضاعة', 'رقم الشاسيه', 'الوزن'];
   const rows = currentRecords.map((r, idx) => [
     String(idx + 1).padStart(3, '0'),
-    r.billNo,
-    r.consigneeName || r.shipperName || '',
-    r.acid,
-    r.cargoType,
-    r.chassis
+    r.billNo || '',
+    r.consigneeName || '',
+    r.acid || '0',
+    r.cargoType || '',
+    r.chassis || '',
+    r.weight || '2000'
   ].join('\t'));
 
   const textToCopy = [headers.join('\t'), ...rows].join('\n');

@@ -91,12 +91,13 @@ app.post('/api/export-docx', async (req, res) => {
     const docTitle = title || 'المصري الدولي للتخليص الجمركي - كشف تفريغ منافيست السيارات';
 
     const headers = [
-      { text: 'مسلسل', width: 900 },
-      { text: 'رقم البوليصة', width: 1500 },
-      { text: 'اسم الشاحن', width: 3400 },
-      { text: 'رقم الـ acid', width: 2400 },
-      { text: 'نوع البضاعة', width: 2800 },
-      { text: 'رقم الشاسيه', width: 2800 }
+      { text: 'مسلسل', width: 800 },
+      { text: 'رقم البوليصة', width: 1400 },
+      { text: 'اسم المستلم', width: 3200 },
+      { text: 'رقم الـ acid', width: 2200 },
+      { text: 'نوع البضاعة', width: 2400 },
+      { text: 'رقم الشاسيه', width: 2400 },
+      { text: 'الوزن', width: 1100 }
     ];
 
     const headerCells = headers.map(h => 
@@ -134,10 +135,11 @@ app.post('/api/export-docx', async (req, res) => {
       const rowValues = [
         seq,
         rec.billNo || '',
-        rec.consigneeName || rec.shipperName || '',
+        rec.consigneeName || '',
         rec.acid || '0',
         rec.cargoType || '',
-        rec.chassis || ''
+        rec.chassis || '',
+        rec.weight || '2000'
       ];
 
       const rowCells = rowValues.map((val, cellIdx) => 
@@ -239,10 +241,11 @@ app.post('/api/export-xlsx', (req, res) => {
     const data = records.map((r, idx) => ({
       'مسلسل': String(idx + 1).padStart(3, '0'),
       'رقم البوليصة': r.billNo || '',
-      'اسم الشاحن': r.consigneeName || r.shipperName || '',
+      'اسم المستلم': r.consigneeName || '',
       'رقم الـ acid': r.acid || '0',
       'نوع البضاعة': r.cargoType || '',
-      'رقم الشاسيه': r.chassis || ''
+      'رقم الشاسيه': r.chassis || '',
+      'الوزن': r.weight || '2000'
     }));
 
     const ws = XLSX.utils.json_to_sheet(data);
@@ -252,8 +255,9 @@ app.post('/api/export-xlsx', (req, res) => {
       { wch: 16 },
       { wch: 42 },
       { wch: 26 },
-      { wch: 32 },
-      { wch: 28 }
+      { wch: 30 },
+      { wch: 26 },
+      { wch: 14 }
     ];
 
     if (!ws['!views']) ws['!views'] = [];

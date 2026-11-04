@@ -32,7 +32,6 @@ function normalizeText(str) {
     .replace(/النارص/g, 'الناصر')
     .replace(/نرص/g, 'نصر')
     .replace(/يارس/g, 'ياسر')
-    .replace(/حسني/g, 'حسين')
     .replace(/حسنى/g, 'حسني')
     .replace(/عريب/g, 'عربي')
     .replace(/العريب/g, 'العربي')
@@ -54,6 +53,7 @@ function normalizeText(str) {
     .replace(/رشيف/g, 'شريف')
     .replace(/رشكة/g, 'شركة')
     .replace(/صربي/g, 'صبري')
+    .replace(/صربيه/g, 'صبرية')
     .replace(/فﺿي/g, 'فضي')
     .replace(/مﻼحظات/g, 'ملاحظات')
     .replace(/اﻻندلس/g, 'الاندلس')
@@ -62,11 +62,113 @@ function normalizeText(str) {
     .replace(/بدرالدين/g, 'بدر الدين')
     .replace(/سعدالدين/g, 'سعد الدين')
     .replace(/سيفالدين/g, 'سيف الدين')
+    // Customs inverted / corrupted names & letters
+    .replace(/منري/g, 'منير')
+    .replace(/سمري/g, 'سمير')
+    .replace(/امري/g, 'أمير')
+    .replace(/اماين/g, 'أماني')
+    .replace(/حسانني/g, 'حسنين')
+    .replace(/حسنني/g, 'حسنين')
+    .replace(/صالحني/g, 'صالحين')
+    .replace(/عوضني/g, 'عوضين')
+    .replace(/سيدني/g, 'سيدين')
+    .replace(/نريمني/g, 'نرمين')
+    .replace(/نريمن/g, 'نرمين')
+    .replace(/عرايب/g, 'عرابي')
+    .replace(/عرياب/g, 'عرابي')
+    .replace(/برشي/g, 'بشرى')
+    .replace(/خري/g, 'خير')
+    .replace(/تريك/g, 'تركي')
+    .replace(/زىك/g, 'زكي')
+    .replace(/داسرت/g, 'داستر')
+    .replace(/ش\s*اكر/g, 'شاكر')
+    .replace(/ف\s*ريج/g, 'فريج')
+    .replace(/رس الختم/g, 'سر الختم')
+    .replace(/عبدالبايق/g, 'عبدالباقي')
+    .replace(/القايض/g, 'القاضي')
+    .replace(/موايف/g, 'موافي')
+    .replace(/الخميىس/g, 'الخميسي')
+    .replace(/الرويب/g, 'الروبي')
+    .replace(/حايش/g, 'حواش')
     .replace(/\s+/g, ' ')
     .trim();
 }
 
 const fixArabicEncoding = normalizeText;
+
+function cleanArabicName(str) {
+  if (!str) return '';
+  let s = str;
+  // If dot separator like "محمود حواش محمود حسني · MAHMOUD"
+  if (s.includes('·')) {
+    const parts = s.split('·');
+    const arPart = parts.find(p => /[\u0600-\u06FF]/.test(p));
+    if (arPart) s = arPart;
+  }
+  // Strip out English letters
+  s = s.replace(/[A-Za-z]/g, '');
+  // Remove known labels if accidentally captured
+  s = s.replace(/^(اسم\s+المستلم|اسم\s+الشاحن|المستلم|الشاحن|Consignee\s*Name|Shipper\s*Name)[\s:.]*/i, '');
+  s = s.replace(/[\s:.]*(اسم\s+المستلم|اسم\s+الشاحن|المستلم|الشاحن)$/i, '');
+  s = normalizeText(s);
+  s = s.replace(/^[\s\-_.:·/]+|[\s\-_.:·/]+$/g, '').trim();
+  s = s.replace(/\s+/g, ' ');
+  return s || str.trim();
+}
+
+function dedupeWords(str) {
+  if (!str) return '';
+  let words = str.split(/\s+/).filter(Boolean);
+  for (let len = Math.floor(words.length / 2); len >= 1; len--) {
+    let changed = true;
+    while (changed) {
+      changed = false;
+      for (let i = 0; i <= words.length - 2 * len; i++) {
+        const p1 = words.slice(i, i + len).join(' ');
+        const p2 = words.slice(i + len, i + 2 * len).join(' ');
+        if (p1 === p2) {
+          words.splice(i + len, len);
+          changed = true;
+          break;
+        }
+      }
+    }
+  }
+  return words.join(' ');
+}
+
+function cleanCargo(str) {
+  if (!str) return '';
+  let s = str;
+  // If slash, extract Arabic part
+  if (s.includes('/')) {
+    const parts = s.split('/');
+    const arPart = parts.find(p => /[\u0600-\u06FF]/.test(p));
+    if (arPart) s = arPart;
+  }
+  // Strip garbage keywords added by manifests
+  s = s.replace(/\b(رسوم\s*ا[لأأ]عطال|السيارات\s*والمعدات|وصف\s*البضاعة|حالة\s*خاصة|عطل|\d+\s*ريال|UNIT|UNT|KG|Vehicle and Equipment|Tariff|التعريفة)\b/gi, '');
+  // Vehicle spelling fixes
+  s = s
+    .replace(/شريي/g, 'شيري')
+    .replace(/سرياتو/g, 'سيراتو')
+    .replace(/جيومرتي/g, 'جيومتري')
+    .replace(/فورتشرن/g, 'فورتشنر')
+    .replace(/ميتسوبييش/g, 'ميتسوبيشي')
+    .replace(/النرتا/g, 'النترا')
+    .replace(/االنرتا/g, 'النترا')
+    .replace(/النرس/g, 'لانسر')
+    .replace(/ش\s*اكمان/g, 'شاكمان')
+    .replace(/ك\s*ريتا/g, 'كريتا')
+    .replace(/كورال/g, 'كورولا')
+    .replace(/كوروال/g, 'كورولا')
+    .replace(/داسرت/g, 'داستر');
+
+  s = normalizeText(s);
+  s = s.replace(/[\s\-_.:·/]+$/g, '').replace(/^[\s\-_.:·/]+/g, '').trim();
+  s = s.replace(/\s+/g, ' ');
+  return dedupeWords(s);
+}
 
 function cleanChassis(str) {
   if (!str) return '';
@@ -120,7 +222,7 @@ function assembleArabicRtlText(items) {
     lines.push(currentLine.map(t => t.str).join(' '));
   }
 
-  return fixArabicEncoding(lines.join(' '));
+  return cleanArabicName(lines.join(' '));
 }
 
 // -------------------------------------------------------------
@@ -154,6 +256,7 @@ async function parseSeaPowerGrid(doc) {
     let lastKnownConsignee = '';
     let lastKnownAcid = '0';
     let lastKnownCargo = '';
+    let lastKnownWeight = '2000';
 
     for (let i = 0; i < chassisItems.length; i++) {
       const cur = chassisItems[i];
@@ -174,8 +277,8 @@ async function parseSeaPowerGrid(doc) {
         if (anyBl.length > 0) billNo = anyBl[0].str;
       }
 
-      // Shipper: x: 620 to 760
-      const shipperItems = rowItems.filter(it => it.x >= 620 && it.x < 760 && !/^\-$/.test(it.str));
+      // Shipper: x: 620 to 760 at cur.y
+      const shipperItems = rowItems.filter(it => Math.abs(it.y - cur.y) <= 8 && it.x >= 620 && it.x < 760 && !/^\-$/.test(it.str));
       let shipperName = '';
       const arabicShipper = shipperItems.filter(it => /[\u0600-\u06FF]/.test(it.str)).sort((a, b) => b.x - a.x);
       if (arabicShipper.length > 0) {
@@ -183,10 +286,10 @@ async function parseSeaPowerGrid(doc) {
       } else if (shipperItems.length > 0) {
         shipperName = shipperItems.map(it => it.str).join(' ');
       }
-      shipperName = fixArabicEncoding(shipperName).replace(/^[\-\s]+|[\-\s]+$/g, '').trim();
+      shipperName = cleanArabicName(shipperName);
 
-      // Consignee: x: 490 to 620
-      const consigneeItems = rowItems.filter(it => it.x >= 490 && it.x < 620 && !/^\-$/.test(it.str) && !/\d{10,}/.test(it.str));
+      // Consignee: x: 490 to 620 at cur.y
+      const consigneeItems = rowItems.filter(it => Math.abs(it.y - cur.y) <= 8 && it.x >= 490 && it.x < 620 && !/^\-$/.test(it.str) && !/\d{10,}/.test(it.str));
       let consigneeName = '';
       const arabicConsignee = consigneeItems.filter(it => /[\u0600-\u06FF]/.test(it.str)).sort((a, b) => b.x - a.x);
       if (arabicConsignee.length > 0) {
@@ -194,7 +297,7 @@ async function parseSeaPowerGrid(doc) {
       } else if (consigneeItems.length > 0) {
         consigneeName = consigneeItems.map(it => it.str).join(' ');
       }
-      consigneeName = fixArabicEncoding(consigneeName).replace(/^[\-\s]+|[\-\s]+$/g, '').trim();
+      consigneeName = cleanArabicName(consigneeName);
 
       // ACID
       let acid = '0';
@@ -204,59 +307,49 @@ async function parseSeaPowerGrid(doc) {
         if (m) { acid = m[1]; break; }
       }
 
-      // Car Type: x: 320 to 460
-      const carTypeItems = rowItems.filter(it => it.x >= 320 && it.x < 460 && !/^\-$/.test(it.str));
+      // Car Type: x: 320 to 460 at cur.y
+      const carTypeItems = rowItems.filter(it => 
+        Math.abs(it.y - cur.y) <= 8 &&
+        it.x >= 320 && it.x < 460 && 
+        !/^\-$/.test(it.str) &&
+        !/Car\s*Type|نوع\s*السيارة|العدد|Units/i.test(it.str)
+      );
       let cargoType = '';
-      const arabicCarType = carTypeItems.filter(it => /[\u0600-\u06FF]/.test(it.str)).sort((a, b) => b.x - a.x);
-      if (arabicCarType.length > 0) {
-        cargoType = arabicCarType.map(it => it.str).join(' ');
+      const arCarItems = carTypeItems.filter(it => /[\u0600-\u06FF0-9]/.test(it.str)).sort((a, b) => b.x - a.x);
+      if (arCarItems.length > 0) {
+        cargoType = arCarItems.map(it => it.str).join(' ');
       } else if (carTypeItems.length > 0) {
         cargoType = carTypeItems.map(it => it.str).join(' ');
       }
-      cargoType = fixArabicEncoding(cargoType).replace(/^[\-\s]+|[\-\s]+$/g, '').trim();
+      cargoType = cleanCargo(cargoType);
 
-      // Multi-car inheritance (e.g. B/L 631 with 4 cars)
-      if (billNo) {
-        lastKnownBl = billNo;
-      } else {
-        billNo = lastKnownBl;
+      // Weight: x: 140 to 195
+      let weight = '2000';
+      const weightItems = rowItems.filter(it => it.x >= 140 && it.x <= 195);
+      for (const it of weightItems) {
+        const digits = it.str.replace(/[^\d]/g, '');
+        if (digits.length >= 3 && digits.length <= 6) {
+          weight = digits;
+          break;
+        }
       }
 
-      if (shipperName) {
-        lastKnownShipper = shipperName;
-      } else if (billNo === lastKnownBl && lastKnownShipper) {
-        shipperName = lastKnownShipper;
-      }
-
-      if (consigneeName) {
-        lastKnownConsignee = consigneeName;
-      } else if (billNo === lastKnownBl && lastKnownConsignee) {
-        consigneeName = lastKnownConsignee;
-      }
-
-      if (acid !== '0') {
-        lastKnownAcid = acid;
-      } else if (billNo === lastKnownBl && lastKnownAcid !== '0') {
-        acid = lastKnownAcid;
-      }
-
-      if (cargoType) {
-        lastKnownCargo = cargoType;
-      } else if (billNo === lastKnownBl && lastKnownCargo) {
-        cargoType = lastKnownCargo;
-      }
-
-      if (!shipperName && consigneeName) shipperName = consigneeName;
-      if (!consigneeName && shipperName) consigneeName = shipperName;
+      // Multi-car inheritance
+      if (billNo) lastKnownBl = billNo; else billNo = lastKnownBl;
+      if (shipperName) lastKnownShipper = shipperName; else if (billNo === lastKnownBl && lastKnownShipper) shipperName = lastKnownShipper;
+      if (consigneeName) lastKnownConsignee = consigneeName; else if (billNo === lastKnownBl && lastKnownConsignee) consigneeName = lastKnownConsignee;
+      if (acid !== '0') lastKnownAcid = acid; else if (billNo === lastKnownBl && lastKnownAcid !== '0') acid = lastKnownAcid;
+      if (cargoType) lastKnownCargo = cargoType; else if (billNo === lastKnownBl && lastKnownCargo) cargoType = lastKnownCargo;
+      if (weight !== '2000') lastKnownWeight = weight; else if (billNo === lastKnownBl && lastKnownWeight !== '2000') weight = lastKnownWeight;
 
       records.push({
         billNo,
         shipperName,
-        consigneeName,
+        consigneeName: consigneeName || shipperName,
         acid,
         cargoType,
         chassis,
-        weight: '2000'
+        weight
       });
     }
   }
@@ -327,21 +420,18 @@ async function parseOslcoDelayed5Card(doc) {
           it.y < nameTopY && it.y >= nameBottomY && it.x >= sMinX && it.x < sMaxX &&
           !/Shipper|الشاحن|Consignee|المستلم/i.test(it.str)
         );
-        const sArabic = sItems.filter(it => /[\u0600-\u06FF]/.test(it.str)).sort((a, b) => b.x - a.x);
-        shipperName = sArabic.map(it => it.str).join(' ').trim();
+        shipperName = cleanArabicName(sItems.map(it => it.str).join(' '));
 
         const cItems = cardItems.filter(it => 
           it.y < nameTopY && it.y >= nameBottomY && it.x >= cMinX && it.x < cMaxX &&
           !/Shipper|الشاحن|Consignee|المستلم|Weight|الوزن/i.test(it.str)
         );
-        const cArabic = cItems.filter(it => /[\u0600-\u06FF]/.test(it.str)).sort((a, b) => b.x - a.x);
-        consigneeName = cArabic.map(it => it.str).join(' ').trim();
+        consigneeName = cleanArabicName(cItems.map(it => it.str).join(' '));
       }
 
+      // Fallbacks
       if (!consigneeName && shipperName) consigneeName = shipperName;
       if (!shipperName && consigneeName) shipperName = consigneeName;
-      consigneeName = consigneeName.replace(/·.*$/g, '').trim();
-      shipperName = shipperName.replace(/·.*$/g, '').trim();
 
       // ACID
       let acid = '0';
@@ -363,6 +453,21 @@ async function parseOslcoDelayed5Card(doc) {
         }
       }
 
+      // Weight
+      let weight = '2000';
+      if (weightLabel) {
+        const weightUnder = cardItems.filter(it => 
+          Math.abs(it.x - weightLabel.x) < 70 && it.y < weightLabel.y && it.y > weightLabel.y - 25
+        );
+        for (const it of weightUnder) {
+          const digits = it.str.replace(/[^\d]/g, '');
+          if (digits.length >= 3 && digits.length <= 6) {
+            weight = digits;
+            break;
+          }
+        }
+      }
+
       // Sub-table
       const tableRows = cardItems.filter(it => it.y < curLabel.y - 45);
       
@@ -372,42 +477,53 @@ async function parseOslcoDelayed5Card(doc) {
         const eqItems = tableRows.filter(it => it.x >= 140 && it.x <= 280 && /^\d{4,8}$/.test(it.str));
         if (eqItems.length > 0) vinItems = eqItems;
       }
+      vinItems.sort((a, b) => b.y - a.y);
 
-      // Description
-      const descItems = tableRows.filter(it => 
-        it.x >= 415 && it.x <= 580 &&
-        !/Description|وصف|البضاعة|Condition|Fault|حالة|خاصة|Collection|األعطال|الأعطال|Tariff|التعريفة|السيارات/i.test(it.str) &&
-        it.str.length > 1
-      );
-      const arabicDesc = descItems.filter(it => /[\u0600-\u06FF]/.test(it.str)).sort((a, b) => b.x - a.x);
-      let cargoType = arabicDesc.map(it => it.str).join(' ').trim();
-      if (!cargoType) {
-        cargoType = descItems.map(it => it.str).join(' ').trim();
-      }
-      cargoType = cargoType.replace(/^[\/\s\-]+|[\/\s\-]+$/g, '').trim();
-
-      if (vinItems.length > 1) {
+      if (vinItems.length > 0) {
         for (const v of vinItems) {
+          // Find description matching this VIN row's Y coordinate
+          const matchingDesc = tableRows.filter(it => 
+            Math.abs(it.y - v.y) <= 10 && it.x >= 415 && it.x <= 580 &&
+            !/Description|وصف|البضاعة|Condition|Fault|حالة|خاصة|Collection|األعطال|الأعطال|Tariff|التعريفة|السيارات/i.test(it.str) &&
+            it.str.length > 1
+          );
+          let cargoType = '';
+          const arDesc = matchingDesc.filter(it => /[\u0600-\u06FF]/.test(it.str)).sort((a, b) => b.x - a.x);
+          if (arDesc.length > 0) {
+            cargoType = arDesc.map(it => it.str).join(' ');
+          } else if (matchingDesc.length > 0) {
+            cargoType = matchingDesc.map(it => it.str).join(' ');
+          }
+          if (!cargoType) {
+            // General card fallback
+            const anyDesc = tableRows.filter(it => 
+              it.x >= 415 && it.x <= 580 &&
+              !/Description|وصف|البضاعة|Condition|Fault|حالة|خاصة|Collection|األعطال|الأعطال|Tariff|التعريفة|السيارات/i.test(it.str) &&
+              it.str.length > 1
+            );
+            cargoType = anyDesc.map(it => it.str).join(' ');
+          }
+          cargoType = cleanCargo(cargoType);
+
           records.push({
             billNo,
             shipperName,
-            consigneeName,
+            consigneeName: consigneeName || shipperName,
             acid,
             cargoType,
             chassis: cleanChassis(v.str),
-            weight: '2000'
+            weight
           });
         }
       } else {
-        const chassis = vinItems.length === 1 ? cleanChassis(vinItems[0].str) : '';
         records.push({
           billNo,
           shipperName,
-          consigneeName,
+          consigneeName: consigneeName || shipperName,
           acid,
-          cargoType,
-          chassis,
-          weight: '2000'
+          cargoType: '',
+          chassis: '',
+          weight
         });
       }
     }
@@ -466,7 +582,8 @@ async function parseOslcoStandardCard(doc) {
       const consigneeHeaderItems = cardItems.filter(it => 
         it.x >= 255 && it.x <= 415 && 
         it.y < curLabel.y && it.y >= curLabel.y - 25 &&
-        /[\u0600-\u06FF]/.test(it.str)
+        /[\u0600-\u06FF]/.test(it.str) &&
+        !/المستلم|Consignee/i.test(it.str)
       );
       let consigneeName = assembleArabicRtlText(consigneeHeaderItems);
 
@@ -474,7 +591,8 @@ async function parseOslcoStandardCard(doc) {
       const shipperHeaderItems = cardItems.filter(it => 
         it.x >= 70 && it.x <= 250 && 
         it.y < curLabel.y && it.y >= curLabel.y - 25 &&
-        /[\u0600-\u06FF]/.test(it.str)
+        /[\u0600-\u06FF]/.test(it.str) &&
+        !/الشاحن|Shipper/i.test(it.str)
       );
       let shipperName = assembleArabicRtlText(shipperHeaderItems);
 
@@ -493,7 +611,7 @@ async function parseOslcoStandardCard(doc) {
       const tableDescItems = tableAreaItems.filter(it => 
         it.x >= 470 && it.x <= 570 &&
         /[\u0600-\u06FF]/.test(it.str) &&
-        !/وصف|البضاعة|Description|Unit|وحدة|Tariff/i.test(it.str)
+        !/وصف|البضاعة|Description|Unit|وحدة|Tariff|السيارات|المعدات/i.test(it.str)
       );
       let cargoType = assembleArabicRtlText(tableDescItems);
       if (!cargoType) {
@@ -504,6 +622,17 @@ async function parseOslcoStandardCard(doc) {
           !/General|Description|الوصف|البضاعة|EXPORT/i.test(it.str)
         );
         cargoType = assembleArabicRtlText(headerDescItems);
+      }
+      cargoType = cleanCargo(cargoType);
+
+      // Weight
+      let weight = '2000';
+      const weightCandidates = cardItems.filter(it => 
+        (it.x >= 50 && it.x <= 95 || it.x >= 450 && it.x <= 520) &&
+        /^\d{3,6}$/.test(it.str.replace(/[,\s]/g, ''))
+      );
+      if (weightCandidates.length > 0) {
+        weight = weightCandidates[0].str.replace(/[,\s]/g, '');
       }
 
       // ACID
@@ -543,11 +672,11 @@ async function parseOslcoStandardCard(doc) {
       records.push({
         billNo,
         shipperName,
-        consigneeName,
+        consigneeName: consigneeName || shipperName,
         acid,
         cargoType,
         chassis,
-        weight: '2000'
+        weight
       });
     }
   }
@@ -605,11 +734,11 @@ async function extractRecordsFromPdfBuffer(buffer) {
   return rawRecords.map((r, idx) => ({
     seq: idx + 1,
     billNo: r.billNo,
-    shipperName: r.shipperName || r.consigneeName,
-    consigneeName: r.consigneeName || r.shipperName,
+    consigneeName: r.consigneeName || r.shipperName || '',
+    shipperName: r.shipperName || r.consigneeName || '',
     acid: r.acid || '0',
-    cargoType: r.cargoType,
-    chassis: r.chassis,
+    cargoType: r.cargoType || '',
+    chassis: r.chassis || '',
     weight: r.weight || '2000',
     column1: r.cargoType && r.chassis ? `${r.cargoType} - ${r.chassis}` : (r.cargoType || r.chassis)
   }));
