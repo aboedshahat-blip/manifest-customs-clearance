@@ -147,7 +147,7 @@ function cleanCargo(str) {
     if (arPart) s = arPart;
   }
   // Strip garbage keywords added by manifests
-  s = s.replace(/\b(رسوم\s*ا[لأأ]عطال|السيارات\s*والمعدات|وصف\s*البضاعة|حالة\s*خاصة|عطل|\d+\s*ريال|UNIT|UNT|KG|Vehicle and Equipment|Tariff|التعريفة)\b/gi, '');
+  s = s.replace(/\b(رسوم\s*ا[لأأ]عطال|السيارات\s*والمعدات|وصف\s*البضاعة|حالة\s*خاصة|عطل|\d+\s*ريال|UNIT|UNT|KG|Vehicle and Equipment|Tariff|التعريفة|بورتوفيق|السويس|مجموع\s*الوزن|إجمالي\s*العدد)\b/gi, '');
   // Vehicle spelling fixes
   s = s
     .replace(/شريي/g, 'شيري')
@@ -168,6 +168,49 @@ function cleanCargo(str) {
   s = s.replace(/[\s\-_.:·/]+$/g, '').replace(/^[\s\-_.:·/]+/g, '').trim();
   s = s.replace(/\s+/g, ' ');
   return dedupeWords(s);
+}
+
+const vinYearMap = {
+  '1': '2001', '2': '2002', '3': '2003', '4': '2004', '5': '2005',
+  '6': '2006', '7': '2007', '8': '2008', '9': '2009',
+  'A': '2010', 'B': '2011', 'C': '2012', 'D': '2013', 'E': '2014',
+  'F': '2015', 'G': '2016', 'H': '2017', 'J': '2018', 'K': '2019',
+  'L': '2020', 'M': '2021', 'N': '2022', 'P': '2023', 'R': '2024',
+  'S': '2025', 'T': '2026', 'V': '2027', 'W': '2028', 'X': '2029', 'Y': '2030'
+};
+
+function getVinModelYear(vin) {
+  if (!vin) return null;
+  const s = vin.replace(/[\s\-_]/g, '').toUpperCase();
+  // Standard 17-char VIN: 10th position (index 9) is model year
+  if (s.length >= 17) {
+    return vinYearMap[s.charAt(9)] || null;
+  }
+  // Short VINs (10-16 chars): also try 10th position if available
+  if (s.length >= 10) {
+    return vinYearMap[s.charAt(9)] || null;
+  }
+  return null;
+}
+
+function ensureModelYear(cargo, chassis, extraContext) {
+  let s = (cargo || '').trim();
+  if (!s) return '';
+  // Check if year already exists (exclude weight 2000)
+  if (/\b(199\d|200[1-9]|20[1-3]\d)\b/.test(s)) {
+    return s;
+  }
+  if (extraContext) {
+    const m = extraContext.match(/\b(199\d|200[1-9]|20[1-3]\d)\b/);
+    if (m) {
+      return s + ' ' + m[1];
+    }
+  }
+  const vinY = getVinModelYear(chassis);
+  if (vinY) {
+    return s + ' ' + vinY;
+  }
+  return s;
 }
 
 const BRAND_REGEX = /MERCEDES|PEUGEOT|TOYOTA|HYUNDAI|KIA|BMW|NISSAN|CHEVROLET|CHEVORLET|MITSUBISHI|HONDA|FORD|VOLKSWAGEN|SKODA|AUDI|RENAULT|MAZDA|GEELY|CHERY|JEEP|SUZUKI|LEXUS|PORSCHE|CATERPILLAR|HITACHI|KOMATSU|SCANIA|VOLVO|DAF|MAN|WAGON|SEDAN|ACTIVE|SPORTAGE|TUCSON|COROLLA|CERATO|ACCENT|ELANTRA|CAMRY|YARIS|PRADO|LANDCRUISER|HILUX|FORTUNER|LANCER|ECLIPSE|PAJERO|KICKS|SUNNY|PATROL|DUSTER|LOGAN|TIGUAN|PASSAT|GOLF|OCTAVIA|KODIAQ|MEGANE|CAPTUR|TIGGO|ARRIZO|COOLRAY|EMGRAND/i;
@@ -326,6 +369,7 @@ async function parseSeaPowerGrid(doc) {
         cargoType = carTypeItems.map(it => it.str).join(' ');
       }
       cargoType = cleanCargo(cargoType);
+      cargoType = ensureModelYear(cargoType, chassis, rowItems.map(i => i.str).join(' '));
 
       // Weight: x: 140 to 195
       let weight = '2000';
@@ -511,6 +555,7 @@ async function parseOslcoDelayed5Card(doc) {
             cargoType = anyDesc.map(it => it.str).join(' ');
           }
           cargoType = cleanCargo(cargoType);
+          cargoType = ensureModelYear(cargoType, v.str, cardItems.map(i => i.str).join(' '));
 
           records.push({
             billNo,
@@ -634,6 +679,7 @@ async function parseOslcoStandardCard(doc) {
         cargoType = assembleArabicRtlText(headerDescItems);
       }
       cargoType = cleanCargo(cargoType);
+      cargoType = ensureModelYear(cargoType, chassis, cardItems.map(i => i.str).join(' '));
 
       // Weight
       let weight = '2000';
@@ -755,3 +801,4 @@ async function extractRecordsFromPdfBuffer(buffer) {
 }
 
 module.exports = { extractRecordsFromPdfBuffer };
+
