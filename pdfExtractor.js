@@ -559,9 +559,19 @@ async function parseOslcoStandardCard(doc) {
 // Universal Dispatcher
 // -------------------------------------------------------------
 async function extractRecordsFromPdfBuffer(buffer) {
-  const { getDocument } = await import('pdfjs-dist/legacy/build/pdf.mjs');
+  const pdfjsLib = await import('pdfjs-dist/legacy/build/pdf.mjs');
+  const { getDocument, GlobalWorkerOptions } = pdfjsLib;
+
+  // Disable external worker — required for Vercel serverless & Node.js environments
+  GlobalWorkerOptions.workerSrc = '';
+
   const data = new Uint8Array(buffer);
-  const doc = await getDocument({ data, standardFontDataUrl: './node_modules/pdfjs-dist/standard_fonts/' }).promise;
+  const doc = await getDocument({
+    data,
+    useWorkerFetch: false,
+    isEvalSupported: false,
+    useSystemFonts: true
+  }).promise;
 
   const page1 = await doc.getPage(1);
   const textContent = await page1.getTextContent();
