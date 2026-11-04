@@ -1,0 +1,285 @@
+const express = require('express');
+const multer = require('multer');
+const path = require('path');
+const fs = require('fs');
+const docx = require('docx');
+const XLSX = require('xlsx');
+const { Document, Packer, Paragraph, Table, TableRow, TableCell, WidthType, AlignmentType, TextRun, ShadingType } = docx;
+
+const { extractRecordsFromPdfBuffer } = require('./pdfExtractor');
+const { parseManifest } = require('./manifestParser');
+
+const app = express();
+const PORT = process.env.PORT || 3000;
+
+const upload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 100 * 1024 * 1024 } // 100MB
+});
+
+app.use(express.json({ limit: '100mb' }));
+app.use(express.urlencoded({ extended: true, limit: '100mb' }));
+app.use(express.static(path.join(__dirname, 'public')));
+
+// 1. API: Convert PDF
+app.post('/api/convert-pdf', upload.single('pdfFile'), async (req, res) => {
+  try {
+    let pdfBuffer;
+    if (req.file) {
+      pdfBuffer = req.file.buffer;
+    } else if (req.body && req.body.pdfBase64) {
+      const base64Data = req.body.pdfBase64.replace(/^data:application\/pdf;base64,/, '');
+      pdfBuffer = Buffer.from(base64Data, 'base64');
+    } else {
+      return res.status(400).json({ error: 'لم يتم إرسال ملف PDF' });
+    }
+
+    console.log(`Processing uploaded PDF (${pdfBuffer.length} bytes)...`);
+    if (!process.env.VERCEL) {
+      try {
+        fs.writeFileSync(path.join(__dirname, 'uploaded_manifest.pdf'), pdfBuffer);
+      } catch (e) {}
+    }
+    
+    // Primary: Accurate 2D Spatial Layout Parser
+    let records = await extractRecordsFromPdfBuffer(pdfBuffer);
+    console.log(`Spatial parser extracted ${records.length} records`);
+
+    return res.json({
+      success: true,
+      count: records.length,
+      records
+    });
+  } catch (err) {
+    console.error('Error processing PDF:', err);
+    return res.status(500).json({
+      error: 'حدث خطأ أثناء معالجة ملف الـ PDF: ' + err.message
+    });
+  }
+});
+
+// 2. API: Convert Raw Text / OCR text
+app.post('/api/convert-text', (req, res) => {
+  try {
+    const { text } = req.body;
+    if (!text || !text.trim()) {
+      return res.status(400).json({ error: 'النص فارغ' });
+    }
+
+    const records = parseManifest(text);
+    return res.json({
+      success: true,
+      count: records.length,
+      records
+    });
+  } catch (err) {
+    console.error('Error processing text:', err);
+    return res.status(500).json({
+      error: 'حدث خطأ أثناء معالجة النص: ' + err.message
+    });
+  }
+});
+
+// 3. API: Generate & Download Word Document (.docx)
+app.post('/api/export-docx', async (req, res) => {
+  try {
+    const { records, title } = req.body;
+    if (!records || !Array.isArray(records)) {
+      return res.status(400).json({ error: 'البيانات غير صالحة' });
+    }
+
+    const docTitle = title || 'المصري الدولي للتخليص الجمركي - كشف تفريغ منافيست السيارات';
+
+    const headers = [
+      { text: 'مسلسل', width: 900 },
+      { text: 'رقم البوليصة', width: 1500 },
+      { text: 'اسم الشاحن', width: 3400 },
+      { text: 'رقم الـ acid', width: 2400 },
+      { text: 'نوع البضاعة', width: 2800 },
+      { text: 'رقم الشاسيه', width: 2800 }
+    ];
+
+    const headerCells = headers.map(h => 
+      new TableCell({
+        width: { size: h.width, type: WidthType.DXA },
+        shading: { fill: '1E3A8A', type: ShadingType.CLEAR },
+        margins: { top: 120, bottom: 120, left: 100, right: 100 },
+        children: [
+          new Paragraph({
+            alignment: AlignmentType.CENTER,
+            bidirectional: true,
+            children: [
+              new TextRun({
+                text: h.text,
+                bold: true,
+                color: 'FFFFFF',
+                size: 20,
+                font: 'Calibri'
+              })
+            ]
+          })
+        ]
+      })
+    );
+
+    const tableRows = [
+      new TableRow({ children: headerCells, tableHeader: true })
+    ];
+
+    records.forEach((rec, idx) => {
+      const isEven = idx % 2 === 0;
+      const bg = isEven ? 'F8FAFC' : 'FFFFFF';
+      const seq = String(idx + 1).padStart(3, '0');
+
+      const rowValues = [
+        seq,
+        rec.billNo || '',
+        rec.consigneeName || rec.shipperName || '',
+        rec.acid || '0',
+        rec.cargoType || '',
+        rec.chassis || ''
+      ];
+
+      const rowCells = rowValues.map((val, cellIdx) => 
+        new TableCell({
+          width: { size: headers[cellIdx].width, type: WidthType.DXA },
+          shading: { fill: bg, type: ShadingType.CLEAR },
+          margins: { top: 100, bottom: 100, left: 80, right: 80 },
+          children: [
+            new Paragraph({
+              alignment: cellIdx === 2 || cellIdx === 4 ? AlignmentType.RIGHT : AlignmentType.CENTER,
+              bidirectional: true,
+              children: [
+                new TextRun({
+                  text: String(val || ''),
+                  size: 19,
+                  font: 'Calibri',
+                  color: '1E293B',
+                  bold: cellIdx === 0
+                })
+              ]
+            })
+          ]
+        })
+      );
+
+      tableRows.push(new TableRow({ children: rowCells }));
+    });
+
+    const doc = new Document({
+      sections: [
+        {
+          properties: {
+            page: {
+              size: {
+                orientation: docx.PageOrientation.LANDSCAPE
+              },
+              margin: {
+                top: 720,
+                right: 720,
+                bottom: 720,
+                left: 720
+              }
+            }
+          },
+          children: [
+            new Paragraph({
+              alignment: AlignmentType.CENTER,
+              bidirectional: true,
+              children: [
+                new TextRun({
+                  text: docTitle,
+                  bold: true,
+                  size: 30,
+                  color: '1E3A8A',
+                  font: 'Calibri'
+                })
+              ]
+            }),
+            new Paragraph({
+              alignment: AlignmentType.CENTER,
+              bidirectional: true,
+              spacing: { after: 200 },
+              children: [
+                new TextRun({
+                  text: `المصري الدولي للتخليص الجمركي | إدارة: أ/ محمد حسن مرزوق (ت: 01221356668) | عدد البوالص: ${records.length} | تاريخ الاستخراج: ${new Date().toLocaleDateString('ar-EG')}`,
+                  size: 17,
+                  color: '475569',
+                  font: 'Calibri'
+                })
+              ]
+            }),
+            new Table({
+              rows: tableRows,
+              alignment: AlignmentType.CENTER
+            })
+          ]
+        }
+      ]
+    });
+
+    const buffer = await Packer.toBuffer(doc);
+    res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document');
+    res.setHeader('Content-Disposition', 'attachment; filename="manifest_table.docx"');
+    return res.send(buffer);
+  } catch (err) {
+    console.error('Error exporting DOCX:', err);
+    return res.status(500).json({ error: 'خطأ أثناء إنشاء ملف الوورد: ' + err.message });
+  }
+});
+
+// 4. API: Generate & Download Excel Spreadsheet (.xlsx)
+app.post('/api/export-xlsx', (req, res) => {
+  try {
+    const { records } = req.body;
+    if (!records || !Array.isArray(records)) {
+      return res.status(400).json({ error: 'البيانات غير صالحة' });
+    }
+
+    const data = records.map((r, idx) => ({
+      'مسلسل': String(idx + 1).padStart(3, '0'),
+      'رقم البوليصة': r.billNo || '',
+      'اسم الشاحن': r.consigneeName || r.shipperName || '',
+      'رقم الـ acid': r.acid || '0',
+      'نوع البضاعة': r.cargoType || '',
+      'رقم الشاسيه': r.chassis || ''
+    }));
+
+    const ws = XLSX.utils.json_to_sheet(data);
+    
+    ws['!cols'] = [
+      { wch: 10 },
+      { wch: 16 },
+      { wch: 42 },
+      { wch: 26 },
+      { wch: 32 },
+      { wch: 28 }
+    ];
+
+    if (!ws['!views']) ws['!views'] = [];
+    ws['!views'].push({ rightToLeft: true });
+
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, 'كشف المنافيست');
+
+    const buffer = XLSX.write(wb, { type: 'buffer', bookType: 'xlsx' });
+    res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+    res.setHeader('Content-Disposition', 'attachment; filename="manifest_table.xlsx"');
+    return res.send(buffer);
+  } catch (err) {
+    console.error('Error exporting XLSX:', err);
+    return res.status(500).json({ error: 'خطأ أثناء إنشاء ملف الإكسيل: ' + err.message });
+  }
+});
+
+if (require.main === module || !process.env.VERCEL) {
+  app.listen(PORT, () => {
+    console.log(`\n======================================================`);
+    console.log(`🚀 تطبيق تحويل منافيست السيارات الجمركي يعمل بنجاح!`);
+    console.log(`🏢 المصري الدولي للتخليص الجمركي - أ/ محمد حسن مرزوق`);
+    console.log(`🌐 الرابط: http://localhost:${PORT}`);
+    console.log(`======================================================\n`);
+  });
+}
+
+module.exports = app;

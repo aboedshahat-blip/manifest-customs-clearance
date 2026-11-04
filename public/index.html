@@ -1,0 +1,375 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>المصري الدولي للتخليص الجمركي | منظومة تفريغ منافيست السيارات</title>
+  
+  <!-- Cairo Font -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
+  
+  <!-- Tailwind CSS CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  
+  <!-- FontAwesome Icons -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  
+  <!-- SheetJS for client-side Excel backup -->
+  <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          fontFamily: {
+            cairo: ['Cairo', 'sans-serif'],
+          },
+          colors: {
+            primary: {
+              50: '#eff6ff',
+              100: '#dbeafe',
+              500: '#3b82f6',
+              600: '#2563eb',
+              700: '#1d4ed8',
+              800: '#1e40af',
+              900: '#1e3a8a',
+            },
+            word: {
+              500: '#2b579a',
+              600: '#185abd',
+              700: '#103f91',
+            },
+            excel: {
+              500: '#217346',
+              600: '#107c41',
+              700: '#0b5c30',
+            }
+          }
+        }
+      }
+    }
+  </script>
+
+  <style>
+    body {
+      font-family: 'Cairo', sans-serif;
+      background-color: #f8fafc;
+    }
+    .custom-scroll::-webkit-scrollbar {
+      width: 8px;
+      height: 8px;
+    }
+    .custom-scroll::-webkit-scrollbar-track {
+      background: #f1f5f9;
+    }
+    .custom-scroll::-webkit-scrollbar-thumb {
+      background: #cbd5e1;
+      border-radius: 4px;
+    }
+    .custom-scroll::-webkit-scrollbar-thumb:hover {
+      background: #94a3b8;
+    }
+    [contenteditable="true"]:hover {
+      outline: 2px dashed #93c5fd;
+      background-color: #eff6ff;
+    }
+    [contenteditable="true"]:focus {
+      outline: 2px solid #2563eb;
+      background-color: #ffffff;
+    }
+  </style>
+</head>
+<body class="min-h-screen text-slate-800 flex flex-col justify-between">
+
+  <!-- Top Navigation Bar -->
+  <header class="bg-gradient-to-r from-slate-950 via-blue-950 to-slate-900 text-white shadow-xl sticky top-0 z-40 border-b border-blue-900/40">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-3 flex flex-wrap items-center justify-between gap-4">
+      <div class="flex items-center space-x-3.5 space-x-reverse">
+        <div class="w-12 h-12 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-2xl flex items-center justify-center text-white text-2xl shadow-lg ring-2 ring-white/10">
+          <i class="fa-solid fa-ship"></i>
+        </div>
+        <div>
+          <div class="flex items-center gap-2">
+            <h1 class="text-xl sm:text-2xl font-black tracking-tight text-white">
+              المصري الدولي للتخليص الجمركي
+            </h1>
+            <span class="text-xs font-bold bg-amber-500/20 text-amber-300 border border-amber-500/40 px-2 py-0.5 rounded-full">المنظومة الذكية</span>
+          </div>
+          <p class="text-xs text-blue-200/90 font-medium flex items-center gap-2 mt-0.5">
+            <span>إدارة: <strong class="text-white">أ / محمد حسن مرزوق</strong></span>
+            <span class="text-blue-400">•</span>
+            <a href="tel:+201221356668" class="text-emerald-300 hover:underline flex items-center gap-1 font-mono">
+              <i class="fa-solid fa-phone text-[10px]"></i> +20 12 21356668
+            </a>
+          </p>
+        </div>
+      </div>
+
+      <!-- Quick Action Badges -->
+      <div class="flex items-center gap-2.5">
+        <a href="https://wa.me/201221356668" target="_blank" class="text-xs font-bold bg-emerald-600 hover:bg-emerald-500 text-white px-3.5 py-2 rounded-xl transition-all flex items-center gap-1.5 shadow-sm">
+          <i class="fa-brands fa-whatsapp text-sm"></i>
+          واتساب المكتب
+        </a>
+        <button id="btnLoadSample" class="text-xs font-semibold bg-white/10 hover:bg-white/20 text-white border border-white/20 px-3.5 py-2 rounded-xl transition-all flex items-center gap-2">
+          <i class="fa-solid fa-wand-magic-sparkles text-amber-300"></i>
+          عينة المنافيست
+        </button>
+        <button id="btnTextModalOpen" class="text-xs font-semibold bg-blue-600/30 hover:bg-blue-600/50 text-blue-200 border border-blue-400/30 px-3 py-2 rounded-xl transition-all flex items-center gap-1.5">
+          <i class="fa-solid fa-paste"></i>
+          لصق نص / OCR
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <!-- Main Content Container -->
+  <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 w-full flex-1 space-y-6">
+
+    <!-- Office Identity Banner Card -->
+    <div class="bg-gradient-to-r from-blue-900/90 via-slate-900 to-indigo-950 rounded-2xl p-4 sm:p-5 text-white shadow-md border border-blue-800/40 flex flex-col md:flex-row items-center justify-between gap-4">
+      <div class="flex items-center gap-4 w-full md:w-auto">
+        <div class="w-14 h-14 sm:w-16 sm:h-16 rounded-xl bg-white/10 border border-white/20 flex-shrink-0 flex items-center justify-center overflow-hidden p-1 shadow-inner">
+          <img src="/images/customs_banner.png" alt="المصري الدولي" class="w-full h-full object-cover rounded-lg">
+        </div>
+        <div>
+          <h2 class="text-base sm:text-lg font-black text-amber-300">
+            المصري الدولي للتخليص الجمركي ونقل البضائع
+          </h2>
+          <p class="text-xs text-slate-300 mt-1 flex flex-wrap gap-x-3 gap-y-1">
+            <span><i class="fa-solid fa-car-side text-blue-400 ml-1"></i> تخليص سيارات وارد نهائي وتربيتيك</span>
+            <span><i class="fa-solid fa-wheelchair text-emerald-400 ml-1"></i> سيارات ذوي الهمم</span>
+            <span><i class="fa-solid fa-sun text-amber-400 ml-1"></i> مبادرة دعم المصريين بالخارج</span>
+          </p>
+        </div>
+      </div>
+      
+      <div class="flex items-center gap-3 w-full md:w-auto justify-end border-t md:border-t-0 pt-3 md:pt-0 border-white/10">
+        <div class="text-left font-mono">
+          <span class="text-[11px] text-slate-400 block">للتواصل والمتابعة المباشرة</span>
+          <span class="text-sm sm:text-base font-bold text-emerald-400 dir-ltr inline-block">+20 12 21356668</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Hero / Upload Card -->
+    <div class="bg-white rounded-2xl shadow-sm border border-slate-200 p-6 sm:p-8">
+      <div class="text-center max-w-2xl mx-auto mb-6">
+        <h2 class="text-2xl font-bold text-slate-900 mb-2">قم برفع ملف الـ PDF لتحويله مباشرة إلى وورد</h2>
+        <p class="text-sm text-slate-500">يقوم النظام تلقائياً باستخراج: رقم البوليصة، اسم المستلم، رقم ACID، نوع البضاعة، أرقام الشاسيهات، والوزن وتوليد العمود المدمج المطلوب.</p>
+      </div>
+
+      <!-- Dropzone -->
+      <div id="dropZone" class="border-2 border-dashed border-slate-300 hover:border-primary-500 hover:bg-primary-50/40 transition-all duration-200 rounded-2xl p-8 sm:p-10 text-center cursor-pointer group relative">
+        <input type="file" id="fileInput" accept=".pdf" class="hidden">
+        
+        <div class="space-y-4">
+          <div class="w-16 h-16 mx-auto bg-primary-100 text-primary-600 rounded-2xl flex items-center justify-center text-3xl group-hover:scale-110 group-hover:bg-primary-600 group-hover:text-white transition-all shadow-sm">
+            <i class="fa-solid fa-cloud-arrow-up"></i>
+          </div>
+          <div>
+            <span class="text-base font-bold text-slate-800 block sm:inline">اسحب وأفلت ملف منافيست الـ PDF هنا</span>
+            <span class="text-slate-400 hidden sm:inline"> أو </span>
+            <span class="text-primary-600 font-bold hover:underline block sm:inline mt-1 sm:mt-0">تصفح من جهازك</span>
+          </div>
+          <p class="text-xs text-slate-400">يدعم ملفات PDF لمنافيست الجمارك والموانئ (صادر، ترانزيت، تربتيك) مهما كان عدد الصفحات</p>
+        </div>
+
+        <!-- Progress Overlay (Hidden by default) -->
+        <div id="uploadProgress" class="hidden absolute inset-0 bg-white/95 backdrop-blur-sm rounded-2xl flex flex-col items-center justify-center p-6 z-10">
+          <div class="w-12 h-12 border-4 border-primary-200 border-t-primary-600 rounded-full animate-spin mb-4"></div>
+          <h3 id="progressTitle" class="text-lg font-bold text-slate-800 mb-1">جارٍ معالجة وتفريغ المنافيست...</h3>
+          <p id="progressSub" class="text-xs text-slate-500 mb-3">يتم قراءة الجداول وأرقام الشاسيهات وACID بدقة</p>
+          <div class="w-64 bg-slate-200 rounded-full h-2 overflow-hidden">
+            <div id="progressBar" class="bg-primary-600 h-2 rounded-full w-2/3 transition-all duration-300"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Statistics Counters (Hidden until data loaded) -->
+    <div id="statsSection" class="grid grid-cols-2 sm:grid-cols-4 gap-4 hidden">
+      <div class="bg-white p-4 rounded-xl border border-slate-200 shadow-sm flex items-center gap-3">
+        <div class="w-12 h-12 rounded-xl bg-blue-100 text-blue-600 flex items-center justify-center text-xl font-bold">
+          <i class="fa-solid fa-file-lines"></i>
+        </div>
+        <div>
+          <span class="text-xs text-slate-400 font-medium block">إجمالي البوالص</span>
+          <span id="statBills" class="text-xl font-extrabold text-slate-800">0</span>
+        </div>
+      </div>
+
+      <div class="bg-white p-4 rounded-xl border border-slate-200 shadow-sm flex items-center gap-3">
+        <div class="w-12 h-12 rounded-xl bg-emerald-100 text-emerald-600 flex items-center justify-center text-xl font-bold">
+          <i class="fa-solid fa-car"></i>
+        </div>
+        <div>
+          <span class="text-xs text-slate-400 font-medium block">أرقام الشاسيهات</span>
+          <span id="statChassis" class="text-xl font-extrabold text-slate-800">0</span>
+        </div>
+      </div>
+
+      <div class="bg-white p-4 rounded-xl border border-slate-200 shadow-sm flex items-center gap-3">
+        <div class="w-12 h-12 rounded-xl bg-purple-100 text-purple-600 flex items-center justify-center text-xl font-bold">
+          <i class="fa-solid fa-weight-hanging"></i>
+        </div>
+        <div>
+          <span class="text-xs text-slate-400 font-medium block">إجمالي الوزن (كجم)</span>
+          <span id="statWeight" class="text-xl font-extrabold text-slate-800">0</span>
+        </div>
+      </div>
+
+      <div class="bg-white p-4 rounded-xl border border-slate-200 shadow-sm flex items-center gap-3">
+        <div class="w-12 h-12 rounded-xl bg-amber-100 text-amber-600 flex items-center justify-center text-xl font-bold">
+          <i class="fa-solid fa-certificate"></i>
+        </div>
+        <div>
+          <span class="text-xs text-slate-400 font-medium block">بوالص مبادرة / خاصة</span>
+          <span id="statSpecial" class="text-xl font-extrabold text-slate-800">0</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Data Table & Actions Card -->
+    <div id="dataSection" class="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden hidden">
+      
+      <!-- Toolbar -->
+      <div class="p-4 sm:p-5 border-b border-slate-200 bg-slate-50 flex flex-wrap items-center justify-between gap-4">
+        
+        <!-- Search input -->
+        <div class="relative w-full sm:w-80">
+          <i class="fa-solid fa-magnifying-glass absolute right-3.5 top-3 text-slate-400 text-sm"></i>
+          <input type="text" id="searchInput" placeholder="بحث برقم البوليصة، الشاسية، المستلم..." class="w-full pr-10 pl-4 py-2 bg-white border border-slate-300 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500">
+        </div>
+
+        <!-- Action buttons -->
+        <div class="flex flex-wrap items-center gap-2.5 w-full sm:w-auto">
+          
+          <!-- Download Word (Primary highlight) -->
+          <button id="btnExportDocx" class="flex-1 sm:flex-none bg-word-600 hover:bg-word-700 text-white font-bold text-sm px-4 py-2.5 rounded-xl shadow-sm hover:shadow transition-all flex items-center justify-center gap-2">
+            <i class="fa-solid fa-file-word text-base"></i>
+            تحميل وورد (Word .docx)
+          </button>
+
+          <!-- Download Excel -->
+          <button id="btnExportXlsx" class="flex-1 sm:flex-none bg-excel-600 hover:bg-excel-700 text-white font-bold text-sm px-4 py-2.5 rounded-xl shadow-sm hover:shadow transition-all flex items-center justify-center gap-2">
+            <i class="fa-solid fa-file-excel text-base"></i>
+            تحميل إكسيل (Excel .xlsx)
+          </button>
+
+          <!-- Download CSV -->
+          <button id="btnExportCsv" class="bg-slate-700 hover:bg-slate-800 text-white text-xs font-semibold px-3 py-2.5 rounded-xl transition-all flex items-center gap-1.5" title="تحميل ملف CSV">
+            <i class="fa-solid fa-file-csv"></i>
+            CSV
+          </button>
+
+          <!-- Copy to Clipboard -->
+          <button id="btnCopyClipboard" class="bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-300 text-xs font-semibold px-3 py-2.5 rounded-xl transition-all flex items-center gap-1.5" title="نسخ الجدول لبرنامج الوورد مباشرة">
+            <i class="fa-solid fa-copy"></i>
+            نسخ الجدول
+          </button>
+
+          <!-- Add Row -->
+          <button id="btnAddRow" class="bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-300 text-xs font-semibold px-3 py-2.5 rounded-xl transition-all flex items-center gap-1.5" title="إضافة سطر">
+            <i class="fa-solid fa-plus"></i>
+            سطر جديد
+          </button>
+
+          <!-- Clear -->
+          <button id="btnClearData" class="bg-rose-50 hover:bg-rose-100 text-rose-600 border border-rose-200 text-xs font-semibold px-3 py-2.5 rounded-xl transition-all flex items-center gap-1.5" title="مسح الجدول">
+            <i class="fa-solid fa-trash-can"></i>
+          </button>
+        </div>
+      </div>
+
+      <!-- Live Editable Table -->
+      <div class="overflow-x-auto custom-scroll max-h-[680px]">
+        <table class="w-full text-right text-sm border-collapse" id="manifestTable">
+          <thead class="bg-slate-900 text-white sticky top-0 z-20 text-xs font-bold shadow-sm">
+            <tr>
+              <th class="py-3 px-3 w-16 text-center border-l border-slate-800">مسلسل</th>
+              <th class="py-3 px-4 w-32 border-l border-slate-800">رقم البوليصة</th>
+              <th class="py-3 px-4 min-w-[240px] border-l border-slate-800">اسم الشاحن</th>
+              <th class="py-3 px-4 w-48 border-l border-slate-800">رقم الـ acid</th>
+              <th class="py-3 px-4 min-w-[200px] border-l border-slate-800">نوع البضاعة</th>
+              <th class="py-3 px-4 w-56 border-l border-slate-800">رقم الشاسيه</th>
+              <th class="py-3 px-2 w-12 text-center">حذف</th>
+            </tr>
+          </thead>
+          <tbody id="tableBody" class="divide-y divide-slate-200 text-slate-700 font-medium">
+            <!-- Dynamic rows will be inserted here -->
+          </tbody>
+        </table>
+      </div>
+
+      <!-- Table Footer / Count info -->
+      <div class="p-3.5 bg-slate-50 border-t border-slate-200 text-xs text-slate-500 flex items-center justify-between">
+        <div>
+          <span>يتم عرض </span>
+          <span id="filteredCount" class="font-bold text-slate-800">0</span>
+          <span> بوليصة من إجمالي </span>
+          <span id="totalCount" class="font-bold text-slate-800">0</span>
+        </div>
+        <span class="text-slate-400 text-[11px]"><i class="fa-regular fa-pen-to-square ml-1"></i>يمكنك النقر على أي خانة في الجدول لتعديل قيمتها مباشرة قبل التصدير</span>
+      </div>
+
+    </div>
+
+  </main>
+
+  <!-- Modal for Raw Text / OCR Paste -->
+  <div id="textModal" class="hidden fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+    <div class="bg-white rounded-2xl shadow-xl max-w-2xl w-full p-6 space-y-4">
+      <div class="flex items-center justify-between border-b pb-3">
+        <h3 class="text-lg font-bold text-slate-900 flex items-center gap-2">
+          <i class="fa-solid fa-paste text-primary-600"></i>
+          لصق نص المنافيست المباشر أو الـ OCR
+        </h3>
+        <button id="btnTextModalClose" class="text-slate-400 hover:text-slate-600">
+          <i class="fa-solid fa-xmark text-lg"></i>
+        </button>
+      </div>
+
+      <div>
+        <label class="block text-xs font-semibold text-slate-600 mb-2">الصق نص المنافيست أو الصفحات هنا وسيقوم النظام بتفريغها فورياً:</label>
+        <textarea id="rawTextArea" rows="10" placeholder="الصق النص هنا..." class="w-full p-3 border border-slate-300 rounded-xl text-xs font-mono focus:ring-2 focus:ring-primary-500 focus:outline-none"></textarea>
+      </div>
+
+      <div class="flex items-center justify-end gap-2.5 pt-2">
+        <button id="btnCancelText" class="px-4 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-100 rounded-xl">إلغاء</button>
+        <button id="btnProcessText" class="px-5 py-2 text-xs font-bold bg-primary-600 hover:bg-primary-700 text-white rounded-xl shadow-sm flex items-center gap-1.5">
+          <i class="fa-solid fa-gears"></i>
+          معالجة وتفريغ النص
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Toast Notification Container -->
+  <div id="toast" class="fixed bottom-6 left-6 z-50 transform translate-y-20 opacity-0 transition-all duration-300 bg-slate-900 text-white px-5 py-3 rounded-xl shadow-xl flex items-center gap-3 text-sm pointer-events-none">
+    <i id="toastIcon" class="fa-solid fa-circle-check text-emerald-400 text-lg"></i>
+    <span id="toastMsg">تمت العملية بنجاح!</span>
+  </div>
+
+  <!-- Footer -->
+  <footer class="bg-slate-900 text-slate-400 border-t border-slate-800 py-6 text-center text-xs">
+    <div class="max-w-7xl mx-auto px-4 space-y-2">
+      <div class="text-sm font-bold text-white flex items-center justify-center gap-2">
+        <i class="fa-solid fa-anchor text-blue-400"></i>
+        المصري الدولي للتخليص الجمركي ونقل البضائع
+      </div>
+      <p class="text-xs text-slate-400">
+        إدارة: أ / محمد حسن مرزوق • هاتف / واتساب: +20 12 21356668 • السويس، جمهورية مصر العربية
+      </p>
+      <div class="text-[11px] text-slate-500 pt-2 border-t border-slate-800/80">
+        منظومة الاستخراج الآلي لمنافيست السيارات الجمركي (صادر، ترانزيت، تربتيك، مبادرة) - تصدير معتمد لملفات Word و Excel
+      </div>
+    </div>
+  </footer>
+
+  <!-- Main JavaScript App Logic -->
+  <script src="/app.js"></script>
+</body>
+</html>
