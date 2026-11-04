@@ -441,14 +441,20 @@ async function handleFile(file) {
   progressBar.style.width = '30%';
   progressTitle.textContent = `جارٍ رفع ومعالجة: ${file.name}...`;
 
-  const formData = new FormData();
-  formData.append('pdfFile', file);
-
+  // Read the file as Base64 and send as JSON (avoids multipart size limits)
+  const reader = new FileReader();
+  const readPromise = new Promise((resolve, reject) => {
+    reader.onload = () => resolve(reader.result);
+    reader.onerror = err => reject(err);
+  });
+  reader.readAsDataURL(file);
   try {
+    const dataUrl = await readPromise; // e.g., data:application/pdf;base64,...
     progressBar.style.width = '65%';
     const response = await fetch('/api/convert-pdf', {
       method: 'POST',
-      body: formData
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ pdfBase64: dataUrl })
     });
 
     progressBar.style.width = '90%';
