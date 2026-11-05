@@ -200,6 +200,10 @@ function ensureModelYear(cargo, chassis, extraContext) {
   if (/\b(199\d|200[1-9]|20[1-3]\d)\b/.test(s)) {
     return s;
   }
+  // Heavy machinery and equipment do not have standard VIN-based model years
+  if (/لودر|بلدوز|جريدر|حفار|كرين|خالط|كلارك|ونش|شاحنة\s*خلط|معدة|معدات/i.test(s)) {
+    return s;
+  }
   if (extraContext) {
     const m = extraContext.match(/\b(199\d|200[1-9]|20[1-3]\d)\b/);
     if (m) {
@@ -270,6 +274,35 @@ function assembleArabicRtlText(items) {
   }
 
   return cleanArabicName(lines.join(' '));
+}
+
+function assembleCargoRtlText(items) {
+  if (!items || items.length === 0) return '';
+  const lines = [];
+  let currentLine = [];
+  let currentY = null;
+
+  const sortedByY = [...items].sort((a, b) => b.y - a.y);
+
+  for (const it of sortedByY) {
+    if (currentY === null || Math.abs(it.y - currentY) > 5) {
+      if (currentLine.length > 0) {
+        currentLine.sort((a, b) => b.x - a.x);
+        lines.push(currentLine.map(t => t.str).join(' '));
+      }
+      currentLine = [it];
+      currentY = it.y;
+    } else {
+      currentLine.push(it);
+    }
+  }
+
+  if (currentLine.length > 0) {
+    currentLine.sort((a, b) => b.x - a.x);
+    lines.push(currentLine.map(t => t.str).join(' '));
+  }
+
+  return normalizeText(lines.join(' ')).trim();
 }
 
 // -------------------------------------------------------------
@@ -710,16 +743,16 @@ async function parseOslcoStandardCard(doc) {
         defaultCardWeight = weightCandidates[0].str.replace(/[,\s]/g, '');
       }
 
-      // Chassis items in this card (Table priority: x: 140 - 280)
+      // Chassis items in this card (Marks No column: x: 155 - 280)
       const tableAreaItems = cardItems.filter(it => it.y < curLabel.y - 25);
-      let vinItems = tableAreaItems.filter(it => it.x >= 140 && it.x <= 280 && isLikelyVin(it.str));
+      let vinItems = tableAreaItems.filter(it => 
+        it.x >= 155 && it.x <= 280 &&
+        !/Marks|العﻼمات|العلامات|وارقام|Container|الحاوية|packag|طرود|العدد/i.test(it.str) &&
+        it.str.trim().length >= 4 &&
+        !BRAND_REGEX.test(it.str)
+      );
       if (vinItems.length === 0) {
         vinItems = tableAreaItems.filter(it => isLikelyVin(it.str));
-      }
-      if (vinItems.length === 0) {
-        // Equipment with short numeric chassis (e.g. 00423, 03070)
-        const eqItems = tableAreaItems.filter(it => it.x >= 140 && it.x <= 280 && /^\d{4,8}$/.test(it.str));
-        if (eqItems.length > 0) vinItems = eqItems;
       }
       vinItems.sort((a, b) => b.y - a.y);
 
@@ -727,21 +760,21 @@ async function parseOslcoStandardCard(doc) {
       const allChassis = Array.from(new Set(vinItems.map(v => cleanChassis(v.str)).filter(Boolean)));
       const chassis = allChassis.join(' - ');
 
-      // Cargo Type (Table priority then Header)
+      // Cargo Type (Table priority then Header: x: 500 to 570, excluding weight at x: 477)
       const tableDescItems = tableAreaItems.filter(it => 
-        it.x >= 470 && it.x <= 570 &&
-        /[\u0600-\u06FF]/.test(it.str) &&
-        !/وصف|البضاعة|Description|Unit|وحدة|Tariff|السيارات|المعدات/i.test(it.str)
+        it.x >= 500 && it.x <= 570 &&
+        !/وصف|البضاعة|Description|Unit|وحدة|Tariff|السيارات|المعدات/i.test(it.str) &&
+        !/^\d{17,21}$/.test(it.str)
       );
-      let cargoType = assembleArabicRtlText(tableDescItems);
+      let cargoType = assembleCargoRtlText(tableDescItems);
       if (!cargoType) {
         const headerDescItems = cardItems.filter(it => 
-          it.x >= 665 && it.x <= 785 &&
+          it.x >= 680 && it.x <= 785 &&
           it.y < curLabel.y && it.y >= curLabel.y - 28 &&
-          /[\u0600-\u06FF]/.test(it.str) &&
-          !/General|Description|الوصف|البضاعة|EXPORT/i.test(it.str)
+          !/General|Description|الوصف|البضاعة|EXPORT|TRANZET/i.test(it.str) &&
+          !/^\d{17,21}$/.test(it.str)
         );
-        cargoType = assembleArabicRtlText(headerDescItems);
+        cargoType = assembleCargoRtlText(headerDescItems);
       }
       cargoType = cleanCargo(cargoType);
       cargoType = ensureModelYear(cargoType, allChassis[0] || '', cardItems.map(i => i.str).join(' '));
