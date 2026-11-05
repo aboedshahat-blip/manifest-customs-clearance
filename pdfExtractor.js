@@ -774,8 +774,7 @@ async function parseOslcoStandardCard(doc) {
       }
 
       // Chassis items in this card (Marks No column: x: 155 - 280)
-      // Exclude page footer summary items (y <= 65) and table headers
-      const tableAreaItems = cardItems.filter(it => it.y < curLabel.y - 25 && it.y > 65);
+      const tableAreaItems = cardItems.filter(it => it.y < curLabel.y - 25);
       let vinItems = tableAreaItems.filter(it => 
         it.x >= 155 && it.x <= 280 &&
         !/Marks|العﻼمات|العلامات|وارقام|Container|الحاوية|packag|طرود|العدد|GENERAL|CARGO|GROSS|WT|KGS|WEIGHT|TOTAL/i.test(it.str) &&
