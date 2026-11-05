@@ -382,13 +382,29 @@ async function parseSeaPowerGrid(doc) {
         }
       }
 
-      // Multi-car inheritance
-      if (billNo) lastKnownBl = billNo; else billNo = lastKnownBl;
-      if (shipperName) lastKnownShipper = shipperName; else if (billNo === lastKnownBl && lastKnownShipper) shipperName = lastKnownShipper;
-      if (consigneeName) lastKnownConsignee = consigneeName; else if (billNo === lastKnownBl && lastKnownConsignee) consigneeName = lastKnownConsignee;
-      if (acid !== '0') lastKnownAcid = acid; else if (billNo === lastKnownBl && lastKnownAcid !== '0') acid = lastKnownAcid;
-      if (cargoType) lastKnownCargo = cargoType; else if (billNo === lastKnownBl && lastKnownCargo) cargoType = lastKnownCargo;
-      if (weight !== '2000') lastKnownWeight = weight; else if (billNo === lastKnownBl && lastKnownWeight !== '2000') weight = lastKnownWeight;
+      // Multi-car inheritance (only within the same bill)
+      const isNewBill = billNo && billNo !== lastKnownBl;
+      if (isNewBill) {
+        lastKnownBl = billNo;
+        lastKnownShipper = shipperName || '';
+        lastKnownConsignee = consigneeName || '';
+        lastKnownAcid = acid || '0';
+        lastKnownCargo = cargoType || '';
+        lastKnownWeight = weight !== '2000' ? weight : '2000';
+      } else {
+        if (!billNo) billNo = lastKnownBl;
+        if (!shipperName && lastKnownShipper) shipperName = lastKnownShipper;
+        if (!consigneeName && lastKnownConsignee) consigneeName = lastKnownConsignee;
+        if (acid === '0' && lastKnownAcid !== '0') acid = lastKnownAcid;
+        if (!cargoType && lastKnownCargo) cargoType = lastKnownCargo;
+        if (weight === '2000' && lastKnownWeight !== '2000') weight = lastKnownWeight;
+
+        if (shipperName) lastKnownShipper = shipperName;
+        if (consigneeName) lastKnownConsignee = consigneeName;
+        if (acid !== '0') lastKnownAcid = acid;
+        if (cargoType) lastKnownCargo = cargoType;
+        if (weight !== '2000') lastKnownWeight = weight;
+      }
 
       records.push({
         billNo,
@@ -748,6 +764,89 @@ async function parseOslcoStandardCard(doc) {
   return records;
 }
 
+function groupRecordsByBill(records) {
+  if (!records || records.length === 0) return [];
+  const groups = [];
+  let currentGroup = null;
+
+  for (const r of records) {
+    const bNo = (r.billNo || '').trim();
+    if (!bNo) {
+      if (currentGroup) groups.push(currentGroup);
+      currentGroup = null;
+      groups.push([r]);
+      continue;
+    }
+
+    if (currentGroup && currentGroup[0].billNo.trim() === bNo) {
+      currentGroup.push(r);
+    } else {
+      if (currentGroup) groups.push(currentGroup);
+      currentGroup = [r];
+    }
+  }
+  if (currentGroup) groups.push(currentGroup);
+
+  return groups.map((group, idx) => {
+    if (group.length === 1) {
+      const g = group[0];
+      return {
+        seq: idx + 1,
+        billNo: g.billNo,
+        consigneeName: g.consigneeName || g.shipperName || '',
+        shipperName: g.shipperName || g.consigneeName || '',
+        acid: g.acid || '0',
+        cargoType: g.cargoType || '',
+        chassis: g.chassis || '',
+        weight: g.weight || '2000',
+        column1: g.cargoType && g.chassis ? `${g.cargoType} - ${g.chassis}` : (g.cargoType || g.chassis)
+      };
+    }
+
+    const allChassis = Array.from(new Set(group.map(g => g.chassis).filter(Boolean)));
+    const combinedChassis = allChassis.join(' - ');
+
+    const consigneeName = group.find(g => g.consigneeName && g.consigneeName.trim())?.consigneeName || group[0].consigneeName || '';
+    const shipperName = group.find(g => g.shipperName && g.shipperName.trim())?.shipperName || group[0].shipperName || '';
+
+    // Prefer non-zero ACID, taking the most frequent if multiple exist
+    const validAcids = group.map(g => g.acid).filter(a => a && a !== '0');
+    let acid = '0';
+    if (validAcids.length > 0) {
+      const counts = {};
+      validAcids.forEach(a => { counts[a] = (counts[a] || 0) + 1; });
+      acid = Object.entries(counts).sort((a, b) => b[1] - a[1])[0][0];
+    } else {
+      acid = group[0].acid || '0';
+    }
+
+    const cargoTypes = Array.from(new Set(group.map(g => g.cargoType).filter(Boolean)));
+    const cargoType = cargoTypes.join(' - ');
+
+    let maxWeight = 0;
+    for (const g of group) {
+      const w = parseInt((g.weight || '').replace(/[^\d]/g, ''), 10) || 0;
+      if (w > maxWeight) maxWeight = w;
+    }
+    if (maxWeight <= 2000 && allChassis.length > 1) {
+      maxWeight = allChassis.length * 2000;
+    }
+    const weight = maxWeight > 0 ? String(maxWeight) : (group[0].weight || '2000');
+
+    return {
+      seq: idx + 1,
+      billNo: group[0].billNo,
+      consigneeName,
+      shipperName,
+      acid,
+      cargoType,
+      chassis: combinedChassis,
+      weight,
+      column1: cargoType && combinedChassis ? `${cargoType} - ${combinedChassis}` : (cargoType || combinedChassis)
+    };
+  });
+}
+
 // -------------------------------------------------------------
 // Universal Dispatcher
 // -------------------------------------------------------------
@@ -795,17 +894,7 @@ async function extractRecordsFromPdfBuffer(buffer) {
     rawRecords = await parseOslcoStandardCard(doc);
   }
 
-  return rawRecords.map((r, idx) => ({
-    seq: idx + 1,
-    billNo: r.billNo,
-    consigneeName: r.consigneeName || r.shipperName || '',
-    shipperName: r.shipperName || r.consigneeName || '',
-    acid: r.acid || '0',
-    cargoType: r.cargoType || '',
-    chassis: r.chassis || '',
-    weight: r.weight || '2000',
-    column1: r.cargoType && r.chassis ? `${r.cargoType} - ${r.chassis}` : (r.cargoType || r.chassis)
-  }));
+  return groupRecordsByBill(rawRecords);
 }
 
 module.exports = { extractRecordsFromPdfBuffer };
