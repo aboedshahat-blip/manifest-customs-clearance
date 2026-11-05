@@ -785,8 +785,9 @@ btnExportXlsx.addEventListener('click', async () => {
     const blob = await response.blob();
     const downloadUrl = window.URL.createObjectURL(blob);
     const a = document.createElement('a');
+    const timeStamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
     a.href = downloadUrl;
-    a.download = `منافيست_سيارات_${new Date().toISOString().slice(0, 10)}.xlsx`;
+    a.download = `منافيست_المصري_الدولي_${timeStamp}.xlsx`;
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);
@@ -812,11 +813,11 @@ btnExportCsv.addEventListener('click', () => {
   const headers = ['مسلسل', 'رقم البوليصة', 'اسم المستلم', 'رقم الـ acid', 'نوع البضاعة', 'رقم الشاسيه', 'الوزن'];
   const rows = currentRecords.map((r, idx) => [
     `"${String(idx + 1).padStart(3, '0')}"`,
-    `"${(r.billNo || '').replace(/"/g, '""')}"`,
+    `="${(r.billNo || '').replace(/"/g, '""')}"`,
     `"${(r.consigneeName || '').replace(/"/g, '""')}"`,
-    `"${(r.acid || '0').replace(/"/g, '""')}"`,
+    `="${(r.acid || '0').replace(/"/g, '""')}"`, // ="..." forces Excel to keep as full text without scientific notation
     `"${(r.cargoType || '').replace(/"/g, '""')}"`,
-    `"${(r.chassis || '').replace(/"/g, '""')}"`,
+    `="${(r.chassis || '').replace(/"/g, '""')}"`,
     `"${(r.weight || '2000').replace(/"/g, '""')}"`
   ]);
 
@@ -824,8 +825,9 @@ btnExportCsv.addEventListener('click', () => {
   const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
   const downloadUrl = window.URL.createObjectURL(blob);
   const a = document.createElement('a');
+  const timeStamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
   a.href = downloadUrl;
-  a.download = `منافيست_سيارات_${new Date().toISOString().slice(0, 10)}.csv`;
+  a.download = `منافيست_المصري_الدولي_${timeStamp}.csv`;
   document.body.appendChild(a);
   a.click();
   document.body.removeChild(a);

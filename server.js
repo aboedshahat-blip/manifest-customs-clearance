@@ -240,23 +240,42 @@ app.post('/api/export-xlsx', (req, res) => {
 
     const data = records.map((r, idx) => ({
       'مسلسل': String(idx + 1).padStart(3, '0'),
-      'رقم البوليصة': r.billNo || '',
-      'اسم المستلم': r.consigneeName || '',
-      'رقم الـ acid': r.acid || '0',
-      'نوع البضاعة': r.cargoType || '',
-      'رقم الشاسيه': r.chassis || '',
-      'الوزن': r.weight || '2000'
+      'رقم البوليصة': String(r.billNo || ''),
+      'اسم المستلم': String(r.consigneeName || ''),
+      'رقم الـ acid': String(r.acid || '0'),
+      'نوع البضاعة': String(r.cargoType || ''),
+      'رقم الشاسيه': String(r.chassis || ''),
+      'الوزن': String(r.weight || '2000')
     }));
 
-    const ws = XLSX.utils.json_to_sheet(data);
+    const ws = XLSX.utils.json_to_sheet(data, { cellDates: false });
+
+    // Explicitly set text format (@) and string type ('s') for ACID, BillNo, and Chassis
+    // This prevents Excel from corrupting long numbers (e.g. converting 19-digit ACID to scientific notation 9.999e+18)
+    if (ws['!ref']) {
+      const range = XLSX.utils.decode_range(ws['!ref']);
+      for (let R = range.s.r + 1; R <= range.e.r; ++R) {
+        // Col 1: رقم البوليصة
+        const billCell = ws[XLSX.utils.encode_cell({ c: 1, r: R })];
+        if (billCell) { billCell.t = 's'; billCell.z = '@'; billCell.v = String(billCell.v); }
+
+        // Col 3: رقم الـ acid
+        const acidCell = ws[XLSX.utils.encode_cell({ c: 3, r: R })];
+        if (acidCell) { acidCell.t = 's'; acidCell.z = '@'; acidCell.v = String(acidCell.v); }
+
+        // Col 5: رقم الشاسيه
+        const chassisCell = ws[XLSX.utils.encode_cell({ c: 5, r: R })];
+        if (chassisCell) { chassisCell.t = 's'; chassisCell.z = '@'; chassisCell.v = String(chassisCell.v); }
+      }
+    }
     
     ws['!cols'] = [
       { wch: 10 },
       { wch: 16 },
       { wch: 42 },
-      { wch: 26 },
+      { wch: 28 },
+      { wch: 32 },
       { wch: 30 },
-      { wch: 26 },
       { wch: 14 }
     ];
 
