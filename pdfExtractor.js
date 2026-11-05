@@ -113,6 +113,7 @@ function cleanArabicName(str) {
   s = normalizeText(s);
   s = s.replace(/^[\s\-_.:·/]+|[\s\-_.:·/]+$/g, '').trim();
   s = s.replace(/\s+/g, ' ');
+  s = dedupeWords(s);
   return s || str.trim();
 }
 
@@ -137,17 +138,44 @@ function dedupeWords(str) {
   return words.join(' ');
 }
 
+function enrichCargoWithModel(cargo, engStr) {
+  if (!cargo || !engStr) return cargo;
+  let c = cargo.trim();
+  const eng = engStr.trim();
+  
+  // Model code patterns like E350, C400, GLA200, C180, C200, A3, TT, X70, CX-9, 316, 508, 3008, 5008, ID-4, EcoSport, ESCALADE
+  const modelMatch = eng.match(/\b(E\d{3}|C\d{3}|GLA\s*\d{2,3}|CLA\s*\d{2,3}|GLE\s*\d{2,3}|GLC\s*\d{2,3}|GLS\s*\d{2,3}|A\d|Q\d|TT|ID[\-.]?\d|EcoSport|ESCALADE|Macan|X\d{2}|CX[\-.]?\d|\d{3,4})\b/i);
+  if (modelMatch) {
+    const code = modelMatch[1].trim();
+    const digitsMatch = code.match(/\d+/);
+    if (digitsMatch && c.includes(digitsMatch[0])) {
+      return c;
+    }
+    const regex = new RegExp(`(^|\\s)${code}(\\s|$)`, 'i');
+    if (!regex.test(c)) {
+      c = `${c} ${code}`;
+    }
+  }
+  return c;
+}
+
 function cleanCargo(str) {
   if (!str) return '';
   let s = str;
-  // If slash, extract Arabic part
+  // If slash separates Arabic from pure English (e.g. "سيدان / Sedan"), keep Arabic.
+  // BUT if both sides have Arabic (e.g. "فورد / ايكو سبورت"), keep both!
   if (s.includes('/')) {
     const parts = s.split('/');
-    const arPart = parts.find(p => /[\u0600-\u06FF]/.test(p));
-    if (arPart) s = arPart;
+    const arParts = parts.filter(p => /[\u0600-\u06FF]/.test(p));
+    const nonAr = parts.filter(p => !/[\u0600-\u06FF]/.test(p));
+    if (arParts.length === 1 && nonAr.length > 0) {
+      s = arParts[0];
+    } else {
+      s = parts.join(' ');
+    }
   }
   // Strip garbage keywords added by manifests
-  s = s.replace(/\b(رسوم\s*ا[لأأ]عطال|السيارات\s*والمعدات|وصف\s*البضاعة|حالة\s*خاصة|عطل|\d+\s*ريال|UNIT|UNT|KG|Vehicle and Equipment|Tariff|التعريفة|بورتوفيق|السويس|مجموع\s*الوزن|إجمالي\s*العدد)\b/gi, '');
+  s = s.replace(/\b(رسوم\s*ا[لأأ]عطال|السيارات\s*والمعدات|وصف\s*البضاعة|حالة\s*خاصة|عطل|\d+\s*ريال|UNIT|UNT|KG|Vehicle and Equipment|Tariff|التعريفة|بورتوفيق|السويس|مجموع\s*الوزن|إجمالي\s*العدد|مجموع\s*وزن\s*البضائع\s*العامة|مجموع\s*الطرود|البضائع\s*العامة|الواجها\s*النهائية|الواجهة\s*النهائية|Final\s*Port|EGPTK|TOTALPACKAGES|Total\s*Packages)\b/gi, '');
   // Vehicle spelling fixes
   s = s
     .replace(/شريي/g, 'شيري')
@@ -650,6 +678,8 @@ async function parseOslcoStandardCard(doc) {
       h: it.height
     })).filter(it => it.str.length > 0);
 
+    const pageFooter = items.find(it => /TOTALPACKAGES|مجموع\s*الطرود|GENERAL\s*CARGO/i.test(it.str));
+
     const billLabels = items.filter(it => 
       it.str.toLowerCase().startsWith('bill no') && 
       it.x >= 15 && it.x <= 35
@@ -663,7 +693,7 @@ async function parseOslcoStandardCard(doc) {
       const nextLabel = cIdx < billLabels.length - 1 ? billLabels[cIdx + 1] : null;
 
       const cardTopY = curLabel.y + 10;
-      const cardBottomY = nextLabel ? nextLabel.y + 10 : 30;
+      const cardBottomY = nextLabel ? nextLabel.y + 10 : (pageFooter ? pageFooter.y + 10 : 30);
 
       const cardItems = items.filter(it => it.y <= cardTopY && it.y > cardBottomY);
 
@@ -765,7 +795,7 @@ async function parseOslcoStandardCard(doc) {
       // Cargo Type (Table priority then Header: x: 470 to 570, excluding weight at x: 477)
       const tableDescItems = tableAreaItems.filter(it => 
         it.x >= 470 && it.x <= 570 &&
-        !/وصف|البضاعة|Description|Unit|وحدة|Tariff|السيارات|المعدات|packag|طرود/i.test(it.str) &&
+        !/وصف|البضاعة|Description|Unit|وحدة|Tariff|السيارات|المعدات|packag|طرود|مجموع|الطرود|البضائع|العامة|GENERAL|CARGO|الواجها|الواجهة|النهائية|بورتوفيق/i.test(it.str) &&
         !/^\d{17,21}$/.test(it.str) &&
         !(it.x < 485 && /^\d+$/.test(it.str.trim()))
       );
@@ -774,11 +804,22 @@ async function parseOslcoStandardCard(doc) {
         const headerDescItems = cardItems.filter(it => 
           it.x >= 680 && it.x <= 785 &&
           it.y < curLabel.y && it.y >= curLabel.y - 28 &&
-          !/General|Description|الوصف|البضاعة|EXPORT|TRANZET/i.test(it.str) &&
+          !/General|Description|الوصف|البضاعة|EXPORT|TRANZET|الواجها|الواجهة|النهائية|Final|Port|EGPTK|بورتوفيق/i.test(it.str) &&
           !/^\d{17,21}$/.test(it.str)
         );
         cargoType = assembleCargoRtlText(headerDescItems);
       }
+
+      // Check English Description column (x: 572 - 660) to enrich generic brand names with model (e.g. E350, C400, GLA200, ESCALADE)
+      const engDescItem = tableAreaItems.find(it => 
+        it.x >= 572 && it.x <= 660 &&
+        /[a-zA-Z]/.test(it.str) &&
+        !/Description|Vehicle|Equipment|Tariff|Unit|SL|Weight|Marks|Total|Packages|Final|Port/i.test(it.str)
+      );
+      if (engDescItem && cargoType) {
+        cargoType = enrichCargoWithModel(cargoType, engDescItem.str);
+      }
+
       cargoType = cleanCargo(cargoType);
       cargoType = ensureModelYear(cargoType, allChassis[0] || '', cardItems.map(i => i.str).join(' '));
 
