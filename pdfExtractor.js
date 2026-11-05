@@ -90,6 +90,15 @@ function normalizeText(str) {
     .replace(/الخميىس/g, 'الخميسي')
     .replace(/الرويب/g, 'الروبي')
     .replace(/حايش/g, 'حواش')
+    // Delayed manifest name OCR fixes
+    .replace(/اسالم/g, 'إسلام')
+    .replace(/والء/g, 'ولاء')
+    .replace(/هاين/g, 'هاني')
+    .replace(/يرسا/g, 'يسرا')
+    .replace(/نارص/g, 'ناصر')
+    .replace(/متويل/g, 'متولي')
+    .replace(/حسىن/g, 'حسني')
+    .replace(/رصايص/g, 'رصاصي')
     .replace(/\s+/g, ' ')
     .trim();
 }
@@ -159,6 +168,69 @@ function enrichCargoWithModel(cargo, engStr) {
   return c;
 }
 
+function stripPhoneticTranslit(s) {
+  // Remove embedded English transliteration blocks that customs manifests add
+  // e.g. "HYUNDAI ALANTARA 2017 هيونداي" -> "هيونداي 2017"
+  // First, remove known phonetic patterns:
+  const phoneticPatterns = [
+    /\bHYUNDAI\s+(?:ALANTARA|ELANTRA|TUCSON|ILANTRA)\b/gi,
+    /\bHYUNDAI\s+TUSUN\b/gi,
+    /\bMITSUBISHI\s+(?:AXBANDAR|AXBANDER|EKSBANDER|AXPANDER)\b/gi,
+    /\bCHERY\s+(?:TIGGO|TIGO)\s*(?:\d\s*)?(?:PRO\s*)?(?:MAX\s*)?/gi,
+    /\bSHACMAN\s+(?:MIXER|MIKSAR|MIX)\s*(?:TRICK|TRAK|TRUCK)?\b/gi,
+    /\bSZMANGAN\s+\w+/gi,
+    /\bSAIK\s+(?:MUTUR|MUTURAZ|MUTUR\s*AR\s*AX|MUTUR\s*ARAX)\b/gi,
+    /\bMG\s+(?:SAIK\s+)?(?:MUTUR|MUTURAZ|MUTUR\s*AR\s*AX)\b/gi,
+    /\bJEEP\s+(?:JARANAD|GRANAD|GRAND)\s*(?:SHARUKI|SHARUWKI|SHIRUKI)?\b/gi,
+    /\bJARANAD\s+(?:SHARUKI|SHARUWKI|SHIRUKI)\b/gi,
+    /\bCHEVROLET\s+(?:KABTIFYA|KABTIFIYAH|KABTIFFA|AIKUNAX|AIKONAX|IKUNAX|TAHAW)\b/gi,
+    /\bVOLKSWAGEN\s+(?:TIGUAN|TIGAN|JULF|GOLF)\b/gi,
+    /\bSUZUKI\s+(?:FARUNAX|FRUNX|FARUNKS|ALTARIJ|ALTRAJ|AL\s*TARIJ|BALINU|DAIZIR)\b/gi,
+    /\bDODGE\s+(?:RAM\s+)?DUDAJ\s+(?:RAM\s+)?/gi,
+    /\bDUDAJ\s+RAM\b/gi,
+    /\bBYD\s+(?:SUNAJ|SUNJ|SUNAJBALAS|SUNAJ\s*BALAS|BALAS)\b/gi,
+    /\bPEUGEOT\s+(?:HITSHABAK|HICHBACK|HATCHBAK|JIYT|JAYIT)\b/gi,
+    /\bSSANGYONG\s+(?:TURIS|TURIZ)\b/gi,
+    /\bTOYOTA\s+(?:JI\s+AX\s+AR|JI\s+AXR|JIAXAR)\b/gi,
+    /\bNISSAN\s+(?:BATH\s+)?FAINDAR\b/gi,
+    /\bSITRUIN\s+(?:SATRUIN\s+)?SI\b/gi,
+    /\bSATRUIN\s+SI\b/gi,
+    /\bSHANJN\s*CS\d+\b/gi,
+    /\bSHANJNCS\d+\b/gi,
+    /CS\s*\d+\s*SHANJN\s*CS\s*\d+/gi,
+    /\bSHIFURLIH\s+TAHAW\b/gi,
+    /\bTHAHBI\b/gi,
+    /\bFATAH\b/gi,
+    /\bAUKAFANAJAW\b/gi,
+    /\bKT\s*KI\s*TI\s*UMM\b/gi,
+    /\bDARAJAH\s+NARIH\b/gi,
+    /\bABID\b/gi,
+    /\bUGNAWGNAY\b/gi,
+    /\bARIZU\d*\b/gi,
+    /\bAR\s+AX\b/gi,
+    /\bASUD\b/gi,         // أسود (black) transliterated
+    /\bMG\b(?!\s+\d)/gi,  // Remove standalone MG brand when Arabic present (ام جي already there)
+  ];
+  for (const p of phoneticPatterns) {
+    s = s.replace(p, ' ');
+  }
+  // If Arabic text is present, remove ALL remaining English brand/word sequences
+  // but keep model codes that contain digits (E350, GLA200, 316, EXC500, CS35)
+  if (/[\u0600-\u06FF]/.test(s)) {
+    s = s.replace(/\b([A-Z][A-Z0-9\-]{2,})\b/g, (m) => {
+      // Keep alphanumeric model codes (contain both letters and digits, short)
+      if (/\d/.test(m) && /[A-Z]/.test(m) && m.length <= 8) {
+        return m; // Keep model codes like E350, C400, GLA200, EXC500, GLC300, CS35
+      }
+      // Keep purely numeric strings (they're years or codes)
+      if (/^\d+$/.test(m)) return m;
+      // Remove all-letter brand names since Arabic provides them
+      return ' ';
+    });
+  }
+  return s;
+}
+
 function cleanCargo(str) {
   if (!str) return '';
   let s = str;
@@ -174,12 +246,15 @@ function cleanCargo(str) {
       s = parts.join(' ');
     }
   }
+  // Strip phonetic English transliterations used in delayed manifests
+  s = stripPhoneticTranslit(s);
   // Strip garbage keywords added by manifests
   s = s.replace(/\b(رسوم\s*ا[لأأ]عطال|السيارات\s*والمعدات|وصف\s*البضاعة|حالة\s*خاصة|عطل|\d+\s*ريال|UNIT|UNT|KG|Vehicle and Equipment|Tariff|التعريفة|بورتوفيق|السويس|مجموع\s*الوزن|إجمالي\s*العدد|مجموع\s*وزن\s*البضائع\s*العامة|مجموع\s*الطرود|البضائع\s*العامة|الواجها\s*النهائية|الواجهة\s*النهائية|Final\s*Port|EGPTK|TOTALPACKAGES|Total\s*Packages)\b/gi, '');
   // Vehicle spelling fixes
   s = s
     .replace(/شريي/g, 'شيري')
     .replace(/سرياتو/g, 'سيراتو')
+    .replace(/سرياتيو/g, 'سيراتو')
     .replace(/جيومرتي/g, 'جيومتري')
     .replace(/فورتشرن/g, 'فورتشنر')
     .replace(/ميتسوبييش/g, 'ميتسوبيشي')
@@ -190,7 +265,32 @@ function cleanCargo(str) {
     .replace(/ك\s*ريتا/g, 'كريتا')
     .replace(/كورال/g, 'كورولا')
     .replace(/كوروال/g, 'كورولا')
-    .replace(/داسرت/g, 'داستر');
+    .replace(/داسرت/g, 'داستر')
+    .replace(/شنجن/g, 'شانجان')
+    .replace(/رصايص/g, 'رصاصي')
+    .replace(/سرتوين/g, 'ستروين')
+    .replace(/يب\s*ام\s*دبليو/g, 'بي ام دبليو')
+    .replace(/يب\s*واي\s*دي/g, 'بي واي دي')
+    .replace(/يك\s*يت\s*ام/g, 'كي تي ام')
+    .replace(/كياسيراتو/g, 'كيا سيراتو')
+    // Fix brand name variations before deduplication
+    .replace(/شيفورليه/g, 'شيفروليه')
+    .replace(/سوزويك/g, 'سوزوكي')
+    // Fix Arabic phonetic leftovers from transliteration (AR AX -> ام جي)
+    .replace(/موتور\s*ار\s*اكس\s*(ام\s*جي\s*)?سايك/g, 'ام جي سايك')
+    .replace(/\bام\s*جي\s*سايك\b/g, 'ام جي')
+    .replace(/\bسايك\b/g, '')  // Remove trailing 'سايك' (Psyche/SAIK phonetic)
+    // Fix partial cargo (تيفا شيفروليه كاب -> شيفروليه كابتيفا)
+    .replace(/تيفا\s*شيفروليه\s*كاب\b/g, 'شيفروليه كابتيفا')
+    .replace(/كاب\s*تيفا\s*شيفروليه/g, 'شيفروليه كابتيفا')
+    .replace(/كاب\s*تيفيا/g, 'كابتيفا')
+    // Fix ستروين يس 4 ستروين يس -> ستروين يس 4
+    .replace(/(ستروين\s+يس\s+\d)\s+ستروين\s+يس/g, '$1')
+    .replace(/ستروين\s+يس\s+(ستروين\s+يس\s+\d)/g, '$1')
+    // Fix برو م اكس -> برو ماكس 
+    .replace(/برو\s*م\s*اكس/g, 'برو ماكس')
+    // Fix reversed cargo fragments: brand at end, model at start
+    .replace(/^(تيفا)\s+(شيفروليه)\s+(كاب)\b/g, 'شيفروليه كابتيفا');
 
   s = normalizeText(s);
   s = s.replace(/[\s\-_.:·/]+$/g, '').replace(/^[\s\-_.:·/]+/g, '').trim();
@@ -610,26 +710,48 @@ async function parseOslcoDelayed5Card(doc) {
       if (vinItems.length > 0) {
         for (const v of vinItems) {
           // Find description matching this VIN row's Y coordinate
-          const matchingDesc = tableRows.filter(it => 
+          // Arabic text in delayed manifests is at x >= 480 (right side)
+          // English phonetic transliteration is at x >= 415 && x < 480 (left side) - SKIP those
+          const matchingDescAll = tableRows.filter(it => 
             Math.abs(it.y - v.y) <= 10 && it.x >= 415 && it.x <= 580 &&
             !/Description|وصف|البضاعة|Condition|Fault|حالة|خاصة|Collection|األعطال|الأعطال|Tariff|التعريفة|السيارات/i.test(it.str) &&
             it.str.length > 1
           );
+          // Prefer Arabic-only items (x >= 475): avoids phonetic English transliterations
+          const matchingDescAr = matchingDescAll.filter(it => /[\u0600-\u06FF]/.test(it.str)).sort((a, b) => b.x - a.x);
+          // English column for model code enrichment (x: 415-480, no Arabic)
+          const matchingEngOnly = matchingDescAll.filter(it => !/[\u0600-\u06FF]/.test(it.str) && /[A-Z0-9]/.test(it.str)).sort((a, b) => a.x - b.x);
+
           let cargoType = '';
-          const arDesc = matchingDesc.filter(it => /[\u0600-\u06FF]/.test(it.str)).sort((a, b) => b.x - a.x);
-          if (arDesc.length > 0) {
-            cargoType = arDesc.map(it => it.str).join(' ');
-          } else if (matchingDesc.length > 0) {
-            cargoType = matchingDesc.map(it => it.str).join(' ');
+          if (matchingDescAr.length > 0) {
+            // Use Arabic text only
+            cargoType = matchingDescAr.map(it => it.str).join(' ');
+          } else if (matchingDescAll.length > 0) {
+            cargoType = matchingDescAll.map(it => it.str).join(' ');
           }
           if (!cargoType) {
-            // General card fallback
-            const anyDesc = tableRows.filter(it => 
+            // General card fallback - prefer Arabic
+            const anyDescAr = tableRows.filter(it => 
               it.x >= 415 && it.x <= 580 &&
+              /[\u0600-\u06FF]/.test(it.str) &&
               !/Description|وصف|البضاعة|Condition|Fault|حالة|خاصة|Collection|األعطال|الأعطال|Tariff|التعريفة|السيارات/i.test(it.str) &&
               it.str.length > 1
-            );
-            cargoType = anyDesc.map(it => it.str).join(' ');
+            ).sort((a, b) => b.x - a.x);
+            if (anyDescAr.length > 0) {
+              cargoType = anyDescAr.map(it => it.str).join(' ');
+            } else {
+              const anyDescAll = tableRows.filter(it => 
+                it.x >= 415 && it.x <= 580 &&
+                !/Description|وصف|البضاعة|Condition|Fault|حالة|خاصة|Collection|األعطال|الأعطال|Tariff|التعريفة|السيارات/i.test(it.str) &&
+                it.str.length > 1
+              );
+              cargoType = anyDescAll.map(it => it.str).join(' ');
+            }
+          }
+          // Enrich with model code from English column (e.g. EXC500, 316, E350)
+          if (matchingEngOnly.length > 0) {
+            const engStr = matchingEngOnly.map(it => it.str).join(' ');
+            cargoType = enrichCargoWithModel(cargoType || '', engStr) || cargoType;
           }
           cargoType = cleanCargo(cargoType);
           cargoType = ensureModelYear(cargoType, v.str, cardItems.map(i => i.str).join(' '));
@@ -897,7 +1019,52 @@ function groupRecordsByBill(records) {
     }
 
     const cargoTypes = Array.from(new Set(group.map(g => g.cargoType).filter(Boolean)));
-    const cargoType = cargoTypes.join(' - ');
+    // If multiple cargo types differ only by year or minor variation, use the most common/longest
+    let cargoType = '';
+    if (cargoTypes.length === 1) {
+      cargoType = cargoTypes[0];
+    } else if (cargoTypes.length > 1) {
+      // Normalize for comparison: strip year AND colors, collapse spaces, lowercase
+      const COLOR_WORDS = /\b(ابيض|اسود|احمر|ازرق|اخضر|اصفر|رمادي|فضي|بني|برتقالي|وردي|بنفسجي|ذهبي|تيتانيوم|رصاصي|ثلجي|لؤلؤي)\b/g;
+      const normalize = c => c
+        .replace(/\b(199\d|200[1-9]|20[1-3]\d)\b/g, '')
+        .replace(COLOR_WORDS, '')
+        .replace(/\s+/g, ' ').trim().toLowerCase();
+      const stripped = cargoTypes.map(normalize);
+      const uniqueStripped = Array.from(new Set(stripped));
+      if (uniqueStripped.length === 1) {
+        // Same cargo with different years/colors - take the one with a year (longest)
+        cargoType = cargoTypes.reduce((a, b) => a.length >= b.length ? a : b);
+      } else {
+        // Check if they're very similar (one is substring of another, or differ by only 1-2 chars)
+        // e.g. "خالط اسمنت شاكمان" vs "خالط اسمنت شكمان"
+        let merged = false;
+        const sorted = [...cargoTypes].sort((a, b) => b.length - a.length);
+        // Try to find a "master" cargo type that contains the core of others
+        for (let i = 0; i < sorted.length; i++) {
+          const masterNorm = normalize(sorted[i]);
+          const allSubset = sorted.every((other, j) => {
+            if (i === j) return true;
+            const otherNorm = normalize(other);
+            // Check if other is mostly contained in master (60% overlap)
+            const otherWords = otherNorm.split(/\s+/).filter(w => w.length > 1);
+            const masterWords = masterNorm.split(/\s+/);
+            if (otherWords.length === 0) return true;
+            const matchCount = otherWords.filter(w => masterWords.includes(w)).length;
+            return matchCount / otherWords.length >= 0.6;
+          });
+          if (allSubset) {
+            cargoType = sorted[i]; // Use the longest/most complete version
+            merged = true;
+            break;
+          }
+        }
+        if (!merged) {
+          // Truly different cargo types - join them (e.g. mixed shipments)
+          cargoType = cargoTypes.join(' - ');
+        }
+      }
+    }
 
     let maxWeight = 0;
     for (const g of group) {
