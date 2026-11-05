@@ -707,99 +707,41 @@ async function parseOslcoStandardCard(doc) {
       }
       vinItems.sort((a, b) => b.y - a.y);
 
-      if (vinItems.length > 0) {
-        for (const v of vinItems) {
-          const chassis = cleanChassis(v.str);
+      // Join all chassis in this card into a single row
+      const allChassis = Array.from(new Set(vinItems.map(v => cleanChassis(v.str)).filter(Boolean)));
+      const chassis = allChassis.join(' - ');
 
-          // Row-specific Cargo Type matching this VIN's Y coordinate (within +-8pt)
-          const rowDescItems = tableAreaItems.filter(it => 
-            Math.abs(it.y - v.y) <= 8 &&
-            it.x >= 470 && it.x <= 570 &&
-            /[\u0600-\u06FF]/.test(it.str) &&
-            !/وصف|البضاعة|Description|Unit|وحدة|Tariff|السيارات|المعدات/i.test(it.str)
-          );
-          let cargoType = assembleArabicRtlText(rowDescItems);
-          if (!cargoType) {
-            // General table description
-            const tableDescItems = tableAreaItems.filter(it => 
-              it.x >= 470 && it.x <= 570 &&
-              /[\u0600-\u06FF]/.test(it.str) &&
-              !/وصف|البضاعة|Description|Unit|وحدة|Tariff|السيارات|المعدات/i.test(it.str)
-            );
-            cargoType = assembleArabicRtlText(tableDescItems);
-          }
-          if (!cargoType) {
-            // Header description
-            const headerDescItems = cardItems.filter(it => 
-              it.x >= 665 && it.x <= 785 &&
-              it.y < curLabel.y && it.y >= curLabel.y - 28 &&
-              /[\u0600-\u06FF]/.test(it.str) &&
-              !/General|Description|الوصف|البضاعة|EXPORT/i.test(it.str)
-            );
-            cargoType = assembleArabicRtlText(headerDescItems);
-          }
-          cargoType = cleanCargo(cargoType);
-          cargoType = ensureModelYear(cargoType, chassis, cardItems.map(i => i.str).join(' '));
-
-          // Row-specific Weight (Weight column: x: 50-95 at v.y)
-          let weight = '';
-          const rowWeightItems = tableAreaItems.filter(it => 
-            Math.abs(it.y - v.y) <= 8 &&
-            it.x >= 50 && it.x <= 95 &&
-            /^\d{3,6}$/.test(it.str.replace(/[,\s]/g, ''))
-          );
-          if (rowWeightItems.length > 0) {
-            weight = rowWeightItems[0].str.replace(/[,\s]/g, '');
-          } else {
-            weight = defaultCardWeight;
-          }
-
-          // Row-specific ACID (typically underneath Description or near v.y)
-          let acid = '0';
-          const rowAcidItems = tableAreaItems.filter(it => 
-            it.y <= v.y && it.y >= v.y - 18 &&
-            it.x >= 550 && it.x <= 710
-          );
-          for (const it of rowAcidItems) {
-            const cleaned = it.str.replace(/[\s'’]/g, '');
-            const m = cleaned.match(/\b([7926543]\d{17,21})\b/);
-            if (m) { acid = m[1]; break; }
-          }
-          if (acid === '0') {
-            acid = cardAcid;
-          }
-
-          records.push({
-            billNo,
-            shipperName,
-            consigneeName: consigneeName || shipperName,
-            acid,
-            cargoType,
-            chassis,
-            weight
-          });
-        }
-      } else {
-        // Fallback for card with no detected VIN
-        let cargoType = '';
+      // Cargo Type (Table priority then Header)
+      const tableDescItems = tableAreaItems.filter(it => 
+        it.x >= 470 && it.x <= 570 &&
+        /[\u0600-\u06FF]/.test(it.str) &&
+        !/وصف|البضاعة|Description|Unit|وحدة|Tariff|السيارات|المعدات/i.test(it.str)
+      );
+      let cargoType = assembleArabicRtlText(tableDescItems);
+      if (!cargoType) {
         const headerDescItems = cardItems.filter(it => 
           it.x >= 665 && it.x <= 785 &&
           it.y < curLabel.y && it.y >= curLabel.y - 28 &&
           /[\u0600-\u06FF]/.test(it.str) &&
           !/General|Description|الوصف|البضاعة|EXPORT/i.test(it.str)
         );
-        cargoType = cleanCargo(assembleArabicRtlText(headerDescItems));
-
-        records.push({
-          billNo,
-          shipperName,
-          consigneeName: consigneeName || shipperName,
-          acid: cardAcid,
-          cargoType,
-          chassis: '',
-          weight: defaultCardWeight
-        });
+        cargoType = assembleArabicRtlText(headerDescItems);
       }
+      cargoType = cleanCargo(cargoType);
+      cargoType = ensureModelYear(cargoType, allChassis[0] || '', cardItems.map(i => i.str).join(' '));
+
+      // Weight (Card total weight)
+      const weight = defaultCardWeight || '2000';
+
+      records.push({
+        billNo,
+        shipperName,
+        consigneeName: consigneeName || shipperName,
+        acid: cardAcid,
+        cargoType,
+        chassis,
+        weight
+      });
     }
   }
 
