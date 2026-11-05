@@ -119,8 +119,60 @@ function cleanArabicName(str) {
   // Remove known labels if accidentally captured
   s = s.replace(/^(اسم\s+المستلم|اسم\s+الشاحن|المستلم|الشاحن|Consignee\s*Name|Shipper\s*Name)[\s:.]*/i, '');
   s = s.replace(/[\s:.]*(اسم\s+المستلم|اسم\s+الشاحن|المستلم|الشاحن)$/i, '');
+  // Strip customs regimes and administrative notes attached to names
+  s = s.replace(/[\s\-_/–·]*(مبادرة|مبادره|مالك\s*أول|مالك\s*اول|ت\s*ريبتك|تربتيك|تربتك)[\s\-_/–·]*/g, ' ');
+  // Fix split letters and OCR typos in Arabic names
+  s = s
+    .replace(/عبد\s*الك\s*ريم/g, 'عبدالكريم')
+    .replace(/عبدالك\s*ريم/g, 'عبدالكريم')
+    .replace(/عبد\s*الع\s*زيز/g, 'عبدالعزيز')
+    .replace(/عبدالع\s*زيز/g, 'عبدالعزيز')
+    .replace(/عبد\s*النىب/g, 'عبدالنبي')
+    .replace(/عبد\s*النيب/g, 'عبدالنبي')
+    .replace(/عبدالنىب/g, 'عبدالنبي')
+    .replace(/عبدالنيب/g, 'عبدالنبي')
+    .replace(/عبد\s*السالم/g, 'عبدالسلام')
+    .replace(/عبدالسالم/g, 'عبدالسلام')
+    .replace(/عبد\s*الغىن/g, 'عبدالغني')
+    .replace(/عبدالغىن/g, 'عبدالغني')
+    .replace(/عبد\s*المريض/g, 'عبدالراضي')
+    .replace(/عبدالمريض/g, 'عبدالراضي')
+    .replace(/ق\s*ريب\s*الله/g, 'قريب الله')
+    .replace(/ك\s*ريم/g, 'كريم')
+    .replace(/م\s*ريم/g, 'مريم')
+    .replace(/صاب\s*رين/g, 'صابرين')
+    .replace(/ارشف/g, 'أشرف')
+    .replace(/مرشف/g, 'مشرف')
+    .replace(/عنرت/g, 'عنتر')
+    .replace(/خرضي/g, 'خضري')
+    .replace(/المويل/g, 'المولي')
+    .replace(/بسيوين/g, 'بسيوني')
+    .replace(/البسطويىس/g, 'البسطويسي')
+    .replace(/ال\s*زيىن/g, 'الزيني')
+    .replace(/الشهراين/g, 'الشهراني')
+    .replace(/ورداين/g, 'ورداني')
+    .replace(/الدسويق/g, 'الدسوقي')
+    .replace(/الربقوىق/g, 'البرقوقي')
+    .replace(/المريس/g, 'المرسي')
+    .replace(/الرتاس/g, 'الترس')
+    .replace(/ا\s*الكرش/g, 'القرش')
+    .replace(/أبو\s*سكني/g, 'أبو سكين')
+    .replace(/ابو\s*سكني/g, 'أبو سكين')
+    .replace(/الليىث/g, 'الليثي')
+    .replace(/(^|\s)اليف(\s|$)/g, '$1الليثي$2')
+    .replace(/ساىل/g, 'سالي')
+    .replace(/جالل/g, 'جلال')
+    .replace(/هالل/g, 'هلال')
+    .replace(/األسمر/g, 'الأسمر')
+    .replace(/الحفين/g, 'الحفني')
+    .replace(/(^|\s)مين\s+عبداللطيف/g, '$1أمين عبداللطيف')
+    .replace(/منترص/g, 'منتصر')
+    .replace(/صربه/g, 'صبري')
+    .replace(/ابو\s*خرضه/g, 'أبو خضره')
+    .replace(/شريويك/g, 'شيروكي')
+    .replace(/الزهريي/g, 'الزهيري');
   s = normalizeText(s);
-  s = s.replace(/^[\s\-_.:·/]+|[\s\-_.:·/]+$/g, '').trim();
+  s = s.replace(/^[\s\-_.:·/–]+|[\s\-_.:·/–]+$/g, '').trim();
   s = s.replace(/\s+/g, ' ');
   s = dedupeWords(s);
   return s || str.trim();
@@ -246,6 +298,9 @@ function cleanCargo(str) {
       s = parts.join(' ');
     }
   }
+  // Trim edge symbols first
+  s = s.replace(/^[\s\-_.:·/–]+|[\s\-_.:·/–]+$/g, '').trim();
+
   // Strip phonetic English transliterations used in delayed manifests
   s = stripPhoneticTranslit(s);
   // Strip garbage keywords added by manifests
@@ -280,22 +335,140 @@ function cleanCargo(str) {
     .replace(/موتور\s*ار\s*اكس\s*(ام\s*جي\s*)?سايك/g, 'ام جي سايك')
     .replace(/\bام\s*جي\s*سايك\b/g, 'ام جي')
     .replace(/\bسايك\b/g, '')  // Remove trailing 'سايك' (Psyche/SAIK phonetic)
+    // Fix reversed Peugeot and Changan models
+    .replace(/(^|\s)(2008|3008|5008)\s+(?:بيجو|بيحو)($|\s)/g, '$1بيجو $2$3')
+    .replace(/(^|\s)(CS35|CS55|CS85|CS95)\s+شانجان($|\s)/gi, '$1شانجان $2$3')
     // Fix partial cargo (تيفا شيفروليه كاب -> شيفروليه كابتيفا)
     .replace(/تيفا\s*شيفروليه\s*كاب\b/g, 'شيفروليه كابتيفا')
     .replace(/كاب\s*تيفا\s*شيفروليه/g, 'شيفروليه كابتيفا')
     .replace(/كاب\s*تيفيا/g, 'كابتيفا')
-    // Fix ستروين يس 4 ستروين يس -> ستروين يس 4
-    .replace(/(ستروين\s+يس\s+\d)\s+ستروين\s+يس/g, '$1')
-    .replace(/ستروين\s+يس\s+(ستروين\s+يس\s+\d)/g, '$1')
-    // Fix برو م اكس -> برو ماكس 
-    .replace(/برو\s*م\s*اكس/g, 'برو ماكس')
     // Fix reversed cargo fragments: brand at end, model at start
-    .replace(/^(تيفا)\s+(شيفروليه)\s+(كاب)\b/g, 'شيفروليه كابتيفا');
+    .replace(/(تيفا)\s+(شيفروليه)\s+(كاب)/g, 'شيفروليه كابتيفا')
+    .replace(/واجن\s+تيجوان\s+(\d{4})\s+فولكس/g, 'فولكس واجن تيجوان $1')
+    .replace(/واجن\s+تيجوان\s+فولكس\s+(\d{4})/g, 'فولكس واجن تيجوان $1')
+    .replace(/واجن\s+تيجوان\s+فولكس/g, 'فولكس واجن تيجوان')
+    .replace(/تيجوان\s+فولكس\s+واجن/g, 'فولكس واجن تيجوان')
+    .replace(/جولف\s+فولكس\s+واجن/g, 'فولكس واجن جولف')
+    .replace(/توسان\s+(\d{4})\s+(هيونداي|هونداي)/g, 'هيونداي توسان $1')
+    .replace(/توسان\s+(هيونداي|هونداي)\s+(\d{4})/g, 'هيونداي توسان $2')
+    .replace(/توسان\s+(هيونداي|هونداي)/g, 'هيونداي توسان')
+    .replace(/(االنترا|النترا)\s+(\d{4})\s+(هيونداي|هونداي)/g, 'هيونداي النترا $2')
+    .replace(/(االنترا|النترا)\s+(هيونداي|هونداي)\s+(\d{4})/g, 'هيونداي النترا $3')
+    .replace(/(االنترا|النترا)\s+(هيونداي|هونداي)/g, 'هيونداي النترا')
+    .replace(/ستارجزير\s+هيونداي/g, 'هيونداي ستارجازر')
+    .replace(/كابتيفا\s+شيفروليه/g, 'شيفروليه كابتيفا')
+    .replace(/ايكونكس\s+شيفروليه/g, 'شيفروليه ايكونكس')
+    .replace(/ايكونيكس\s+شيفروليه/g, 'شيفروليه ايكونكس')
+    .replace(/كمارو\s+شيفروليه/g, 'شيفروليه كمارو')
+    .replace(/كروس\s+تويوتا\s+يوربان/g, 'تويوتا اوربان كروزر')
+    .replace(/مصندق\s+(\d{4})\s+تويوتا/g, 'تويوتا مصندق $1')
+    .replace(/مصندق\s+تويوتا/g, 'تويوتا مصندق')
+    .replace(/دبليو\s+دراجة\s+نا\s*رية\s+(\d{4})\s+يب\s+ام/g, 'بي ام دبليو دراجة نارية $1')
+    .replace(/دبليو\s+دراجة\s+نا\s*رية\s+يب\s+ام/g, 'بي ام دبليو دراجة نارية')
+    .replace(/فايندر\s+نيسان\s+باث/g, 'نيسان باثفايندر')
+    .replace(/اكس\s*ار\s*\(?ابيض\)?\s*\)?\s*\(?\s*تويوتا\s*جي/g, 'تويوتا جي اكس ار ابيض')
+    .replace(/ستروين\s+(?:يس|سي)\s+4\s+ستروين\s+(?:يس|سي)/g, 'ستروين سي 4')
+    .replace(/ستروين\s+(?:يس|سي)\s+4/g, 'ستروين سي 4')
+    .replace(/CS35\s*شانجان\s+CS35\s+شانجان/g, 'شانجان CS35')
+    .replace(/CS35\s*شانجان/g, 'شانجان CS35')
+    .replace(/EXC500\s+كي\s+تي\s+ام\s+EXC500\s+كي\s+تي\s+ام/g, 'كي تي ام EXC500')
+    .replace(/EXC500\s+كي\s+تي\s+ام/g, 'كي تي ام EXC500')
+    .replace(/برو\s+ماكس\s+شيري\s+تيجو/g, 'شيري تيجو برو ماكس')
+    .replace(/داشنغ\s+(\d{4})\s+جيتور/g, 'جيتور داشينج $1')
+    .replace(/داشنغ\s+جيتور/g, 'جيتور داشينج')
+    .replace(/تو\s*ريس\s+(\d{4})\s+سانج\s+يونج/g, 'سانج يونج توريس $1')
+    .replace(/تو\s*ريس\s+سانج\s+يونج/g, 'سانج يونج توريس')
+    .replace(/سونج\s+(\d{4})\s+بي\s+واي\s+دي/g, 'بي واي دي سونج $1')
+    .replace(/سونج\s+بي\s+واي\s+دي/g, 'بي واي دي سونج')
+    .replace(/ال\s*رتيج\(?فيض\s*\)?\s*سوزوكي/g, 'سوزوكي ارتيجا')
+    .replace(/هيتشباك\s+(\d{4})\s+بيجو/g, 'بيجو هاتشباك $1')
+    .replace(/هيتشباك\s+بيجو/g, 'بيجو هاتشباك')
+    .replace(/ديهاتسو\s+ي\s*رتيوس\s+ديهاتسو/g, 'ديهاتسو تيريوس')
+    .replace(/باجريو\s+ميتسوبيشي/g, 'ميتسوبيشي باجيرو')
+    .replace(/لانسر\s+ميتسوبيشي/g, 'ميتسوبيشي لانسر')
+    .replace(/اكليبس\s+ميتسوبيشي/g, 'ميتسوبيشي اكليبس')
+    .replace(/اكلبس\s+ميتسوبيشي/g, 'ميتسوبيشي اكليبس')
+    .replace(/اكليبس\s+كروس\s+ميتسوبيشي/g, 'ميتسوبيشي اكليبس كروس')
+    .replace(/اكسباندر\s+ميتسوبيشي/g, 'ميتسوبيشي اكسباندر')
+    .replace(/اكسبندر\s+ميتسوبيشي/g, 'ميتسوبيشي اكسباندر')
+    .replace(/سوبارو\s+ام\s*ربيزا/g, 'سوبارو امبريزا')
+    .replace(/300\s+مرسيدس\s+ىس/g, 'مرسيدس C300')
+    .replace(/مرسيدس\s+يس/g, 'مرسيدس C-Class')
+    .replace(/جي\s+سايك\s+موتور\s+زد\s+اس.*ام/g, 'ام جي ZS')
+    .replace(/موتورز\s+ام\s+جي/g, 'ام جي')
+    .replace(/5\s+ام\s+جي/g, 'ام جي 5')
+    .replace(/شيري\s+ا\s*ريزو/g, 'شيري اريزو')
+    .replace(/تويوتا\s+ياسر/g, 'تويوتا ياريس')
+    .replace(/بيحو\s+صالون/g, 'بيجو صالون')
+    .replace(/شيفروليه\s+شيفورلية\s+ماليبوا/g, 'شيفروليه ماليبو')
+    .replace(/يب\s*وادي\s*دي/g, 'بي واي دي')
+    .replace(/هوندا\s+يس\s*ار\s*يف/g, 'هوندا CR-V')
+    .replace(/هوندا\s+زد\s*ار\s*يف/g, 'هوندا ZR-V')
+    .replace(/هوندا\s+سيىت/g, 'هوندا سيتي')
+    .replace(/بيجو\s+جى\s*ىت/g, 'بيجو GT')
+    .replace(/بيجو\s+جي\s*يت/g, 'بيجو GT')
+    .replace(/جيب\s+جراند\s+(رشويك|شريويك)/g, 'جيب جراند شيروكي')
+    .replace(/الند\s*كروزر/g, 'تويوتا لاندكروزر')
+    .replace(/تويوتا\s+الند\s*كروزر/g, 'تويوتا لاندكروزر')
+    .replace(/تويوتا\s+هايلكس/g, 'تويوتا هايلوكس')
+    .replace(/كياسبورتاج/g, 'كيا سبورتاج')
+    .replace(/كيا\s*سبورتج/g, 'كيا سبورتاج')
+    .replace(/فورد\s+موستنج/g, 'فورد موستانج')
+    .replace(/رينو\s+ميجاين/g, 'رينو ميجان')
+    .replace(/رينو\s+ميغان/g, 'رينو ميجان')
+    .replace(/فرونكس\s+(\d{4})\s+سوزوكي/g, 'سوزوكي فرونكس $1')
+    .replace(/فرونكس\s+سوزوكي/g, 'سوزوكي فرونكس');
+
+  // Strip edge punctuation and normalize before checking leading year
+  s = s.replace(/^[\s\-_.:·/–]+|[\s\-_.:·/–]+$/g, '').trim();
+
+  // If year is at the beginning (e.g. "2023 ام جي" -> "ام جي 2023")
+  const leadingYear = s.match(/^(\d{4})\s+(.+)$/);
+  if (leadingYear && parseInt(leadingYear[1], 10) >= 1990 && parseInt(leadingYear[1], 10) <= 2035) {
+    s = `${leadingYear[2]} ${leadingYear[1]}`;
+  }
 
   s = normalizeText(s);
-  s = s.replace(/[\s\-_.:·/]+$/g, '').replace(/^[\s\-_.:·/]+/g, '').trim();
+  s = s.replace(/[\s\-_.:·/–]+$/g, '').replace(/^[\s\-_.:·/–]+/g, '').trim();
   s = s.replace(/\s+/g, ' ');
   return dedupeWords(s);
+}
+
+function decodeVinMakeModel(vin) {
+  if (!vin) return '';
+  const v = vin.replace(/[\s\-_]/g, '').toUpperCase();
+  if (v.startsWith('1C4')) return 'جيب جراند شيروكي';
+  if (v.startsWith('1GN')) return 'شيفروليه تاهو';
+  if (v.startsWith('LGX')) return 'بي واي دي';
+  if (v.startsWith('WBA') || v.startsWith('WB1')) return 'بي ام دبليو';
+  if (v.startsWith('WDD') || v.startsWith('W1K') || v.startsWith('W1N') || v.startsWith('W1T') || v.startsWith('55S')) return 'مرسيدس';
+  if (v.startsWith('JTE') || v.startsWith('JTG') || v.startsWith('JTF') || v.startsWith('MR0') || v.startsWith('RKL') || v.startsWith('MHF') || v.startsWith('JTM') || v.startsWith('JTD')) return 'تويوتا';
+  if (v.startsWith('KMH') || v.startsWith('TMA') || v.startsWith('MAL') || v.startsWith('MF3') || v.startsWith('LBE')) return 'هيونداي';
+  if (v.startsWith('KNA') || v.startsWith('U5Y') || v.startsWith('LJD') || v.startsWith('MZB') || v.startsWith('3KP')) return 'كيا';
+  if (v.startsWith('VF1')) return 'رينو';
+  if (v.startsWith('VF3') || v.startsWith('VR3') || v.startsWith('VR7')) return 'بيجو';
+  if (v.startsWith('TMB')) return 'سكودا';
+  if (v.startsWith('WVG') || v.startsWith('WVW')) return 'فولكس فاجن';
+  if (v.startsWith('JE3') || v.startsWith('JE4') || v.startsWith('JMY') || v.startsWith('MK2')) return 'ميتسوبيشي';
+  if (v.startsWith('JHL') || v.startsWith('MRJ') || v.startsWith('MAK') || v.startsWith('1HG') || v.startsWith('NLA')) return 'هوندا';
+  if (v.startsWith('LVV') || v.startsWith('LVT') || v.startsWith('LVU')) return 'شيري';
+  if (v.startsWith('LB3') || v.startsWith('L6T')) return 'جيلي';
+  if (v.startsWith('LSJ') || v.startsWith('LSW')) return 'ام جي';
+  if (v.startsWith('LS5')) return 'شانجان';
+  if (v.startsWith('LGW')) return 'هافال';
+  if (v.startsWith('LZG')) return 'شاكمان';
+  if (v.startsWith('LZW') || v.startsWith('1G1') || v.startsWith('3GN') || v.startsWith('KL1')) return 'شيفروليه';
+  if (v.startsWith('5N1') || v.startsWith('JN8') || v.startsWith('MNT')) return 'نيسان';
+  if (v.startsWith('1FA')) return 'فورد';
+  if (v.startsWith('2C3') || v.startsWith('1C6')) return 'دودج';
+  if (v.startsWith('MBH') || v.startsWith('MA3')) return 'سوزوكي';
+  if (v.startsWith('WAU')) return 'اودي';
+  if (v.startsWith('HJ')) return 'جيتور';
+  if (v.startsWith('SAL')) return 'لاند روفر';
+  if (v.startsWith('JTJ')) return 'لكزس';
+  if (v.startsWith('ZAR')) return 'الفا روميو';
+  if (v.startsWith('VBK')) return 'كي تي ام';
+  return '';
 }
 
 const vinYearMap = {
@@ -323,6 +496,15 @@ function getVinModelYear(vin) {
 
 function ensureModelYear(cargo, chassis, extraContext) {
   let s = (cargo || '').trim();
+  // If cargo is missing, or is only numbers/years (e.g. "2025" or "8 2026")
+  if (!s || /^\d{1,4}$/.test(s) || /^\d+\s+\d{4}$/.test(s)) {
+    const make = decodeVinMakeModel(chassis);
+    if (make) {
+      const existingYear = s.match(/\b(199\d|200[1-9]|20[1-3]\d)\b/)?.[1];
+      const vinY = existingYear || getVinModelYear(chassis);
+      return vinY ? `${make} ${vinY}` : make;
+    }
+  }
   if (!s) return '';
   // Check if year already exists (exclude weight 2000)
   if (/\b(199\d|200[1-9]|20[1-3]\d)\b/.test(s)) {
@@ -988,24 +1170,29 @@ function groupRecordsByBill(records) {
   return groups.map((group, idx) => {
     if (group.length === 1) {
       const g = group[0];
+      const consigneeName = cleanArabicName(g.consigneeName || g.shipperName || '');
+      const shipperName = cleanArabicName(g.shipperName || g.consigneeName || '');
+      const cargoType = cleanCargo(g.cargoType || '');
       return {
         seq: idx + 1,
         billNo: g.billNo,
-        consigneeName: g.consigneeName || g.shipperName || '',
-        shipperName: g.shipperName || g.consigneeName || '',
+        consigneeName,
+        shipperName,
         acid: g.acid || '0',
-        cargoType: g.cargoType || '',
+        cargoType,
         chassis: g.chassis || '',
         weight: g.weight || '2000',
-        column1: g.cargoType && g.chassis ? `${g.cargoType} - ${g.chassis}` : (g.cargoType || g.chassis)
+        column1: cargoType && g.chassis ? `${cargoType} - ${g.chassis}` : (cargoType || g.chassis)
       };
     }
 
     const allChassis = Array.from(new Set(group.map(g => g.chassis).filter(Boolean)));
     const combinedChassis = allChassis.join(' - ');
 
-    const consigneeName = group.find(g => g.consigneeName && g.consigneeName.trim())?.consigneeName || group[0].consigneeName || '';
-    const shipperName = group.find(g => g.shipperName && g.shipperName.trim())?.shipperName || group[0].shipperName || '';
+    let consigneeName = group.find(g => g.consigneeName && g.consigneeName.trim())?.consigneeName || group[0].consigneeName || '';
+    let shipperName = group.find(g => g.shipperName && g.shipperName.trim())?.shipperName || group[0].shipperName || '';
+    consigneeName = cleanArabicName(consigneeName);
+    shipperName = cleanArabicName(shipperName);
 
     // Prefer non-zero ACID, taking the most frequent if multiple exist
     const validAcids = group.map(g => g.acid).filter(a => a && a !== '0');
@@ -1065,16 +1252,16 @@ function groupRecordsByBill(records) {
         }
       }
     }
+    cargoType = cleanCargo(cargoType);
 
-    let maxWeight = 0;
-    for (const g of group) {
-      const w = parseInt((g.weight || '').replace(/[^\d]/g, ''), 10) || 0;
-      if (w > maxWeight) maxWeight = w;
+    const weights = group.map(g => parseInt((g.weight || '').replace(/[^\d]/g, ''), 10) || 0);
+    const maxW = Math.max(...weights, 0);
+
+    let totalWeight = maxW;
+    if (totalWeight <= 2000 && allChassis.length > 1) {
+      totalWeight = allChassis.length * 2000;
     }
-    if (maxWeight <= 2000 && allChassis.length > 1) {
-      maxWeight = allChassis.length * 2000;
-    }
-    const weight = maxWeight > 0 ? String(maxWeight) : (group[0].weight || '2000');
+    const weight = totalWeight > 0 ? String(totalWeight) : (group[0].weight || '2000');
 
     return {
       seq: idx + 1,
@@ -1140,5 +1327,5 @@ async function extractRecordsFromPdfBuffer(buffer) {
   return groupRecordsByBill(rawRecords);
 }
 
-module.exports = { extractRecordsFromPdfBuffer };
+module.exports = { extractRecordsFromPdfBuffer, cleanCargo, cleanArabicName, ensureModelYear };
 
