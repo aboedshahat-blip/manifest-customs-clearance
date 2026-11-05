@@ -618,6 +618,9 @@ function renderTable() {
     const acidBadgeClass = isZeroAcid ? 'text-slate-400 font-mono text-xs' : 'text-blue-700 font-mono text-xs font-bold';
     const seqStr = String(index + 1).padStart(3, '0');
 
+    // Format multi-chassis with <br> for clean stacked display
+    const chassisHtml = (row.chassis || '').split(/\s*-\s*|\n/).map(c => c.trim()).filter(Boolean).join('<br>');
+
     tr.innerHTML = `
       <td class="py-3 px-3 text-center text-slate-800 text-xs font-mono font-bold border-l border-slate-200">${seqStr}</td>
       
@@ -637,8 +640,8 @@ function renderTable() {
         ${row.cargoType}
       </td>
       
-      <td class="py-3 px-4 font-mono text-xs text-slate-700 border-l border-slate-200 font-bold" contenteditable="true" data-field="chassis" data-id="${row.id}">
-        ${row.chassis}
+      <td class="py-3 px-4 font-mono text-xs text-slate-700 border-l border-slate-200 font-bold leading-relaxed" contenteditable="true" data-field="chassis" data-id="${row.id}">
+        ${chassisHtml || row.chassis}
       </td>
       
       <td class="py-3 px-3 text-center font-mono text-xs text-slate-700 border-l border-slate-200" contenteditable="true" data-field="weight" data-id="${row.id}">

@@ -4,6 +4,7 @@ const path = require('path');
 const fs = require('fs');
 const docx = require('docx');
 const XLSX = require('xlsx');
+const ExcelJS = require('exceljs');
 const { Document, Packer, Paragraph, Table, TableRow, TableCell, WidthType, AlignmentType, TextRun, ShadingType } = docx;
 
 const { extractRecordsFromPdfBuffer } = require('./pdfExtractor');
@@ -142,12 +143,25 @@ app.post('/api/export-docx', async (req, res) => {
         rec.weight || '2000'
       ];
 
-      const rowCells = rowValues.map((val, cellIdx) => 
-        new TableCell({
-          width: { size: headers[cellIdx].width, type: WidthType.DXA },
-          shading: { fill: bg, type: ShadingType.CLEAR },
-          margins: { top: 100, bottom: 100, left: 80, right: 80 },
-          children: [
+      const rowCells = rowValues.map((val, cellIdx) => {
+        let paragraphs = [];
+        if (cellIdx === 5 && (String(val).includes('\n') || String(val).includes(' - '))) {
+          const chLines = String(val).split(/\s*-\s*|\n/).map(c => c.trim()).filter(Boolean);
+          paragraphs = chLines.map(line => new Paragraph({
+            alignment: AlignmentType.CENTER,
+            bidirectional: true,
+            children: [
+              new TextRun({
+                text: line,
+                size: 19,
+                font: 'Calibri',
+                color: '1E293B',
+                bold: true
+              })
+            ]
+          }));
+        } else {
+          paragraphs = [
             new Paragraph({
               alignment: cellIdx === 2 || cellIdx === 4 ? AlignmentType.RIGHT : AlignmentType.CENTER,
               bidirectional: true,
@@ -161,9 +175,16 @@ app.post('/api/export-docx', async (req, res) => {
                 })
               ]
             })
-          ]
-        })
-      );
+          ];
+        }
+
+        return new TableCell({
+          width: { size: headers[cellIdx].width, type: WidthType.DXA },
+          shading: { fill: bg, type: ShadingType.CLEAR },
+          margins: { top: 100, bottom: 100, left: 80, right: 80 },
+          children: paragraphs
+        });
+      });
 
       tableRows.push(new TableRow({ children: rowCells }));
     });
@@ -231,64 +252,115 @@ app.post('/api/export-docx', async (req, res) => {
 });
 
 // 4. API: Generate & Download Excel Spreadsheet (.xlsx)
-app.post('/api/export-xlsx', (req, res) => {
+app.post('/api/export-xlsx', async (req, res) => {
   try {
     const { records } = req.body;
     if (!records || !Array.isArray(records)) {
       return res.status(400).json({ error: 'البيانات غير صالحة' });
     }
 
-    const data = records.map((r, idx) => ({
-      'مسلسل': String(idx + 1).padStart(3, '0'),
-      'رقم البوليصة': String(r.billNo || ''),
-      'اسم المستلم': String(r.consigneeName || ''),
-      'رقم الـ acid': String(r.acid || '0'),
-      'نوع البضاعة': String(r.cargoType || ''),
-      'رقم الشاسيه': String(r.chassis || ''),
-      'الوزن': String(r.weight || '2000')
-    }));
+    const workbook = new ExcelJS.Workbook();
+    workbook.creator = 'المصري الدولي للتخليص الجمركي';
+    workbook.created = new Date();
 
-    const ws = XLSX.utils.json_to_sheet(data, { cellDates: false });
+    const ws = workbook.addWorksheet('كشف المنافيست', {
+      views: [{ rightToLeft: true }]
+    });
 
-    // Explicitly set text format (@) and string type ('s') for ACID, BillNo, and Chassis
-    // This prevents Excel from corrupting long numbers (e.g. converting 19-digit ACID to scientific notation 9.999e+18)
-    if (ws['!ref']) {
-      const range = XLSX.utils.decode_range(ws['!ref']);
-      for (let R = range.s.r + 1; R <= range.e.r; ++R) {
-        // Col 1: رقم البوليصة
-        const billCell = ws[XLSX.utils.encode_cell({ c: 1, r: R })];
-        if (billCell) { billCell.t = 's'; billCell.z = '@'; billCell.v = String(billCell.v); }
-
-        // Col 3: رقم الـ acid
-        const acidCell = ws[XLSX.utils.encode_cell({ c: 3, r: R })];
-        if (acidCell) { acidCell.t = 's'; acidCell.z = '@'; acidCell.v = String(acidCell.v); }
-
-        // Col 5: رقم الشاسيه
-        const chassisCell = ws[XLSX.utils.encode_cell({ c: 5, r: R })];
-        if (chassisCell) { chassisCell.t = 's'; chassisCell.z = '@'; chassisCell.v = String(chassisCell.v); }
-      }
-    }
-    
-    ws['!cols'] = [
-      { wch: 10 },
-      { wch: 16 },
-      { wch: 42 },
-      { wch: 28 },
-      { wch: 32 },
-      { wch: 30 },
-      { wch: 14 }
+    // Define columns
+    ws.columns = [
+      { header: 'مسلسل', key: 'seq', width: 10 },
+      { header: 'رقم البوليصة', key: 'billNo', width: 18 },
+      { header: 'اسم المستلم', key: 'consigneeName', width: 44 },
+      { header: 'رقم الـ acid', key: 'acid', width: 26 },
+      { header: 'نوع البضاعة', key: 'cargoType', width: 34 },
+      { header: 'رقم الشاسيه', key: 'chassis', width: 32 },
+      { header: 'الوزن', key: 'weight', width: 14 }
     ];
 
-    if (!ws['!views']) ws['!views'] = [];
-    ws['!views'].push({ rightToLeft: true });
+    // Style Header Row (Row 1)
+    const headerRow = ws.getRow(1);
+    headerRow.height = 28;
+    headerRow.font = { name: 'Calibri', size: 11, bold: true, color: { argb: 'FFFFFFFF' } };
+    headerRow.alignment = { vertical: 'middle', horizontal: 'center' };
+    headerRow.eachCell(cell => {
+      cell.fill = {
+        type: 'pattern',
+        pattern: 'solid',
+        fgColor: { argb: 'FF1E3A8A' } // Dark Blue #1E3A8A
+      };
+      cell.border = {
+        top: { style: 'thin', color: { argb: 'FFCBD5E1' } },
+        left: { style: 'thin', color: { argb: 'FFCBD5E1' } },
+        bottom: { style: 'medium', color: { argb: 'FF0F172A' } },
+        right: { style: 'thin', color: { argb: 'FFCBD5E1' } }
+      };
+    });
 
-    const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, 'كشف المنافيست');
+    // Add Data Rows
+    records.forEach((r, idx) => {
+      const chassisLines = (r.chassis || '').split(/\s*-\s*|\n/).map(c => c.trim()).filter(Boolean);
+      const chassisDisplay = chassisLines.join('\n');
+      const seqStr = String(idx + 1).padStart(3, '0');
 
-    const buffer = XLSX.write(wb, { type: 'buffer', bookType: 'xlsx' });
+      const row = ws.addRow({
+        seq: seqStr,
+        billNo: String(r.billNo || ''),
+        consigneeName: String(r.consigneeName || r.shipperName || ''),
+        acid: String(r.acid || '0'),
+        cargoType: String(r.cargoType || ''),
+        chassis: chassisDisplay,
+        weight: String(r.weight || '2000')
+      });
+
+      const isEven = idx % 2 === 0;
+      const bgHex = isEven ? 'FFF8FAFC' : 'FFFFFFFF';
+      const lineCount = Math.max(1, chassisLines.length);
+      row.height = Math.max(22, lineCount * 18);
+
+      row.font = { name: 'Calibri', size: 10 };
+
+      // Style each cell
+      row.eachCell({ includeEmpty: true }, (cell, colNumber) => {
+        // Force string type and text format for ACID, BillNo, Seq, and Chassis
+        cell.numFmt = '@';
+
+        cell.fill = {
+          type: 'pattern',
+          pattern: 'solid',
+          fgColor: { argb: bgHex }
+        };
+
+        cell.border = {
+          top: { style: 'thin', color: { argb: 'FFE2E8F0' } },
+          left: { style: 'thin', color: { argb: 'FFE2E8F0' } },
+          bottom: { style: 'thin', color: { argb: 'FFE2E8F0' } },
+          right: { style: 'thin', color: { argb: 'FFE2E8F0' } }
+        };
+
+        if (colNumber === 3 || colNumber === 5) {
+          // Consignee & Cargo: align right
+          cell.alignment = { vertical: 'middle', horizontal: 'right', wrapText: true };
+        } else if (colNumber === 6) {
+          // Chassis: center, wrapText enabled!
+          cell.alignment = { vertical: 'middle', horizontal: 'center', wrapText: true };
+          cell.font = { name: 'Calibri', size: 10, bold: true };
+        } else if (colNumber === 4) {
+          // ACID: center, bold
+          cell.alignment = { vertical: 'middle', horizontal: 'center' };
+          cell.font = { name: 'Calibri', size: 10, bold: true, color: { argb: 'FF1D4ED8' } };
+        } else {
+          // Seq, Bill, Weight: center
+          cell.alignment = { vertical: 'middle', horizontal: 'center' };
+        }
+      });
+    });
+
     res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
     res.setHeader('Content-Disposition', 'attachment; filename="manifest_table.xlsx"');
-    return res.send(buffer);
+
+    await workbook.xlsx.write(res);
+    return res.end();
   } catch (err) {
     console.error('Error exporting XLSX:', err);
     return res.status(500).json({ error: 'خطأ أثناء إنشاء ملف الإكسيل: ' + err.message });

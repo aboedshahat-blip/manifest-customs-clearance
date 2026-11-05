@@ -744,12 +744,14 @@ async function parseOslcoStandardCard(doc) {
       }
 
       // Chassis items in this card (Marks No column: x: 155 - 280)
-      const tableAreaItems = cardItems.filter(it => it.y < curLabel.y - 25);
+      // Exclude page footer summary items (y <= 65) and table headers
+      const tableAreaItems = cardItems.filter(it => it.y < curLabel.y - 25 && it.y > 65);
       let vinItems = tableAreaItems.filter(it => 
         it.x >= 155 && it.x <= 280 &&
-        !/Marks|العﻼمات|العلامات|وارقام|Container|الحاوية|packag|طرود|العدد/i.test(it.str) &&
+        !/Marks|العﻼمات|العلامات|وارقام|Container|الحاوية|packag|طرود|العدد|GENERAL|CARGO|GROSS|WT|KGS|WEIGHT|TOTAL/i.test(it.str) &&
         it.str.trim().length >= 4 &&
-        !BRAND_REGEX.test(it.str)
+        !BRAND_REGEX.test(it.str) &&
+        /\d/.test(it.str)
       );
       if (vinItems.length === 0) {
         vinItems = tableAreaItems.filter(it => isLikelyVin(it.str));
@@ -760,11 +762,12 @@ async function parseOslcoStandardCard(doc) {
       const allChassis = Array.from(new Set(vinItems.map(v => cleanChassis(v.str)).filter(Boolean)));
       const chassis = allChassis.join(' - ');
 
-      // Cargo Type (Table priority then Header: x: 500 to 570, excluding weight at x: 477)
+      // Cargo Type (Table priority then Header: x: 470 to 570, excluding weight at x: 477)
       const tableDescItems = tableAreaItems.filter(it => 
-        it.x >= 500 && it.x <= 570 &&
-        !/وصف|البضاعة|Description|Unit|وحدة|Tariff|السيارات|المعدات/i.test(it.str) &&
-        !/^\d{17,21}$/.test(it.str)
+        it.x >= 470 && it.x <= 570 &&
+        !/وصف|البضاعة|Description|Unit|وحدة|Tariff|السيارات|المعدات|packag|طرود/i.test(it.str) &&
+        !/^\d{17,21}$/.test(it.str) &&
+        !(it.x < 485 && /^\d+$/.test(it.str.trim()))
       );
       let cargoType = assembleCargoRtlText(tableDescItems);
       if (!cargoType) {
