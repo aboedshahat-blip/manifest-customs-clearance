@@ -22,6 +22,9 @@ app.use(express.json({ limit: '100mb' }));
 app.use(express.urlencoded({ extended: true, limit: '100mb' }));
 app.use(express.static(path.join(__dirname, 'public')));
 
+// Serve @vercel/speed-insights from node_modules
+app.use('/@vercel/speed-insights', express.static(path.join(__dirname, 'node_modules/@vercel/speed-insights/dist')));
+
 // 1. API: Convert PDF
 app.post('/api/convert-pdf', upload.single('pdfFile'), async (req, res) => {
   try {
